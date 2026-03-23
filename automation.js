@@ -465,72 +465,52 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     await withTimeout(page.click(emailSelector), 10000, 'Click email field');
                     await page.type(emailSelector, email, { delay: 30 }); // Human-like typing
 
-                    await new Promise(r => setTimeout(r, 200));
+                    await new Promise(r => setTimeout(r, 600)); // Let React validate email
 
-                    const continueSelector = 'button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
-                    try {
-                        await page.waitForSelector(continueSelector, { timeout: 10000 });
-                        await withTimeout(page.evaluate((sel) => {
-                            const btns = document.querySelectorAll(sel);
-                            for (const btn of btns) {
-                                const text = btn.innerText.trim();
-                                if (text.includes('Tiếp tục') || text.includes('Continue') || text.includes('Next') || text.includes('Lanjut')) {
-                                    btn.click();
-                                    return;
-                                }
-                            }
-                            if (btns.length > 0) btns[0].click();
-                        }, continueSelector), 10000, 'Evaluate continue click');
-                    } catch (e) {
-                        await page.keyboard.press('Enter');
-                    }
+                    // Use trusted keyboard event to submit instead of untrusted DOM click
+                    await page.keyboard.press('Enter');
 
                     const passSelector = 'input[type="password"]';
                     try {
                         await page.waitForSelector(passSelector, { timeout: 15000, visible: true });
                     } catch (e) {
-                        throw new Error("Timeout/Cannot find password field.");
+                        // Check if an error message appeared instead of the password field
+                        const errorMsg = await page.evaluate(() => {
+                            const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"]');
+                            return errEl ? errEl.innerText : '';
+                        }).catch(() => '');
+                        throw new Error(errorMsg ? `Account error: ${errorMsg}` : "Timeout/Cannot find password field.");
                     }
 
                     await withTimeout(page.click(passSelector), 10000, 'Click password field');
                     await page.type(passSelector, password, { delay: 30 }); // Human-like typing
                     
-                    await new Promise(r => setTimeout(r, 200));
+                    await new Promise(r => setTimeout(r, 600)); // Let React validate password
 
-                    const loginBtnSelector = 'button.lv_sign_in_panel_wide-sign-in-button, button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
-                    try {
-                        await withTimeout(page.evaluate((sel) => {
-                            const btns = document.querySelectorAll(sel);
-                            for (const btn of btns) {
-                                const text = btn.innerText.trim();
-                                if (text.includes('Đăng nhập') || text.includes('Log in') || text.includes('Login') || text.includes('Sign in') || text.includes('Masuk')) {
-                                    btn.click();
-                                    return;
-                                }
-                            }
-                            if (btns.length > 0) btns[0].click();
-                        }, loginBtnSelector), 10000, 'Evaluate login click');
-                    } catch (e) {
-                        await page.keyboard.press('Enter');
-                    }
+                    // Use trusted keyboard event to submit
+                    await page.keyboard.press('Enter');
 
                     try {
                         await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 });
                     } catch (e) {
                         // ignore timeout
                     }
-                    await new Promise(r => setTimeout(r, 1500)); // Minor buffer for CapCut post-login redirect routing
+                    await new Promise(r => setTimeout(r, 2000)); // Buffer for routing
 
                     // --- VERIFY LOGIN SUCCESS ---
                     const currentUrl = page.url();
                     const isStillOnLogin = currentUrl.includes('/login') || currentUrl.includes('/signup');
                     if (isStillOnLogin) {
                         const errorMsg = await withTimeout(page.evaluate(() => {
-                            const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red, [class*="lv_sign_in_panel_wide-error"]');
+                            // Broad selector for any error text
+                            const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red, .login-error');
                             return errEl ? errEl.innerText : '';
                         }), 8000, 'Evaluate error message').catch(() => '');
                         
-                        logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errorMsg || 'Still on login page'}`, 'error');
+                        // Fallback check if it's a captcha iframe
+                        const hasCaptcha = await page.evaluate(() => !!document.querySelector('iframe[src*="captcha"]')).catch(() => false);
+                        
+                        logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errorMsg || (hasCaptcha ? 'Blocked by Captcha' : 'Still on login page')}`, 'error');
                         if (socket) socket.emit('failed-account', accLine);
                         return; 
                     }
@@ -551,17 +531,23 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                             return;
                         }
 
-                        const clicked = await withTimeout(page.evaluate((sel) => {
-                            const btns = document.querySelectorAll(sel);
-                            for (const btn of btns) {
-                                if (btn.innerText.includes('Gửi') || btn.innerText.includes('Join') || btn.innerText.includes('Accept') || btn.innerText.includes('Bergabung')) {
-                                    btn.click();
-                                    return true;
-                                }
+                        // Use Native Puppeteer click for Trusted event
+                        let clicked = false;
+                        const btns = await page.$$(joinSelector);
+                        for (const handle of btns) {
+                            const text = await page.evaluate(el => el.innerText, handle).catch(() => '');
+                            if (text && (text.includes('Gửi') || text.includes('Join') || text.includes('Accept') || text.includes('Bergabung'))) {
+                                await handle.click();
+                                clicked = true;
+                                break;
                             }
-                            if (btns.length > 0) { btns[0].click(); return true; }
-                            return false;
-                        }, joinSelector), 10000, 'Evaluate join click').catch(() => false);
+                        }
+                        
+                        // Fallback click on the first valid button if text filter missed
+                        if (!clicked && btns.length > 0) {
+                            await btns[0].click().catch(() => {});
+                            clicked = true;
+                        }
 
                         if (!clicked) {
                             logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Could not auto-click join button`, 'error');
