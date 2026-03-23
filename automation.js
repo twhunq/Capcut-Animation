@@ -38,36 +38,52 @@ function getCurrentTime() {
 function logToSocket(socket, message, type = 'info') {
     if (socket) {
         socket.emit('log', { time: getCurrentTime(), message, type });
-    }
+}
     console.log(`${getCurrentTime()} ${message}`);
 }
+
+const withTimeout = (promise, ms, name = 'Puppeteer operation') => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${name} timed out after ${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+        clearTimeout(timeoutId);
+    });
+};
+
 
 // Install a background auto-clicker that dismisses CapCut popups (Terms of Service, etc.)
 // This runs in the background via MutationObserver so it catches popups no matter when they appear.
 async function installPopupDismisser(page) {
-    await page.evaluate(() => {
-        function tryDismiss() {
-            const btns = document.querySelectorAll('button.lv-btn-primary, button[class*="footer-btn"]');
-            for (const btn of btns) {
-                if (btn.innerText.trim() === 'OK' && btn.offsetParent !== null) {
-                    btn.click();
-                    return true;
+    if (!page) return;
+    try {
+        await withTimeout(page.evaluate(() => {
+            function tryDismiss() {
+                const btns = document.querySelectorAll('button.lv-btn-primary, button[class*="footer-btn"]');
+                for (const btn of btns) {
+                    if (btn.innerText.trim() === 'OK' && btn.offsetParent !== null) {
+                        btn.click();
+                        return true;
+                    }
                 }
+                return false;
             }
-            return false;
-        }
-        // Try immediately in case popup is already there
-        tryDismiss();
-        // Watch for future popups
-        const observer = new MutationObserver(() => { tryDismiss(); });
-        observer.observe(document.body, { childList: true, subtree: true });
-        // Also use interval as fallback
-        const iv = setInterval(() => {
-            if (tryDismiss()) clearInterval(iv);
-        }, 500);
-        // Clean up after 30s
-        setTimeout(() => { observer.disconnect(); clearInterval(iv); }, 30000);
-    }).catch(() => {});
+            // Try immediately in case popup is already there
+            tryDismiss();
+            // Watch for future popups
+            const observer = new MutationObserver(() => { tryDismiss(); });
+            observer.observe(document.body, { childList: true, subtree: true });
+            // Also use interval as fallback
+            const iv = setInterval(() => {
+                if (tryDismiss()) clearInterval(iv);
+            }, 500);
+            // Clean up after 30s
+            setTimeout(() => { observer.disconnect(); clearInterval(iv); }, 30000);
+        }), 5000, 'installPopupDismisser');
+    } catch (e) {
+        // ignore Execution context destroyed or timeouts silently
+    }
 }
 
 async function fetchWithTimeout(resource, options = {}) {
@@ -397,10 +413,7 @@ export async function runRegisterFlow(count, customPassword, socket) {
     if (socket) socket.emit('register-complete');
 }
 
-const withTimeout = (promise, ms, name = 'Puppeteer operation') => Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`${name} timed out after ${ms}ms`)), ms))
-]);
+
 
 export async function runLoginFlow(accountList, inviteUrl, socket) {
     const concurrencyLimit = 3;
