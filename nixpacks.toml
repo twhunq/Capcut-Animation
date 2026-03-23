@@ -1,0 +1,10 @@
+providers = ["npm"]
+
+[phases.setup]
+nixPkgs = ["...", "chromium", "nss", "freetype", "harfbuzz", "pango", "xorg.libX11", "xorg.libXext", "xorg.libXrender", "xorg.libXcomposite", "xorg.libXcursor", "xorg.libXdamage", "xorg.libXfixes", "xorg.libXi", "xorg.libXrandr", "xorg.libXtst", "alsa-lib", "atk", "at-spi2-atk", "cups", "dbus", "expat"]
+
+[phases.build]
+cmds = ["npm ci"]
+
+[start]
+cmd = "npm start"
