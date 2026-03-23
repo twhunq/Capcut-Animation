@@ -327,22 +327,27 @@ async function processSingleAccount(jobId, domainList, customPassword, socket) {
                     await saveToFile('accounts.txt', `${email}|${password}\n`);
                     logToSocket(socket, `[${jobId}] SAVED: ${email}`, 'success');
                     if (socket) socket.emit('account-created', `${email}|${password}`);
+                    return true;
                 } else {
                     logToSocket(socket, `[${jobId}] Verify Failed: ${verifyData.data?.message}`, 'error');
+                    return false;
                 }
             } else {
                 logToSocket(socket, `[${jobId}] Timeout waiting for email.`, 'error');
+                return false;
             }
         } else {
-            logToSocket(socket, `[${jobId}] Register Req Failed.`, 'error');
+            logToSocket(socket, `[${jobId}] Register Req Failed: ${reqnya?.data?.description || reqnya?.message}`, 'error');
+            return false;
         }
     } catch (error) {
         logToSocket(socket, `[${jobId}] Error: ${error.message}`, 'error');
+        return false;
     }
 }
 
 export async function runRegisterFlow(count, customPassword, socket) {
-    logToSocket(socket, `Starting Parallel Registration (${count} accounts, ${CONCURRENCY_LIMIT} threads)`, 'info');
+    logToSocket(socket, `Starting Robust Parallel Registration (Target: ${count} accounts, ${CONCURRENCY_LIMIT} threads)`, 'info');
 
     const domainList = await getEmailRandom(socket);
     if (!domainList || domainList.length === 0) {
@@ -350,21 +355,40 @@ export async function runRegisterFlow(count, customPassword, socket) {
         return;
     }
 
-    // Queue of jobs: [1, 2, ..., count]
-    const jobs = Array.from({ length: count }, (_, i) => i + 1);
+    let successfulCount = 0;
+    let inProgressCount = 0;
+    let jobIdCounter = 0;
 
-    // Worker function: takes job from queue, processes, then takes next
-    async function worker(workerId) {
-        while (jobs.length > 0) {
-            const currentJob = jobs.shift(); // take first job
-            await processSingleAccount(currentJob, domainList, customPassword, socket);
+    // Worker function: dynamic loop until target is met
+    async function worker() {
+        while (true) {
+            if (successfulCount >= count) {
+                return; // Goal reached
+            }
+            if (successfulCount + inProgressCount >= count) {
+                // Wait and see if currently running jobs finish successfully
+                await new Promise(r => setTimeout(r, 1000));
+                continue;
+            }
+
+            // Start a new registration attempt
+            inProgressCount++;
+            jobIdCounter++;
+            const currentJobId = jobIdCounter;
+            
+            const success = await processSingleAccount(currentJobId, domainList, customPassword, socket);
+            
+            inProgressCount--;
+            if (success) {
+                successfulCount++;
+            }
         }
     }
 
     // Start CONCURRENCY_LIMIT workers
     const workers = [];
     for (let i = 0; i < CONCURRENCY_LIMIT; i++) {
-        workers.push(worker(i));
+        workers.push(worker());
     }
 
     await Promise.all(workers);
