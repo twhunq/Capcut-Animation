@@ -24,10 +24,10 @@ io.on('connection', (socket) => {
 });
 
 app.post('/api/start-register', (req, res) => {
-    const { count } = req.body;
+    const { count, password } = req.body;
     console.log(`Starting Register Flow: ${count} accounts`);
     // Run async, don't wait for completion
-    runRegisterFlow(count, io);
+    runRegisterFlow(count, password, io);
     res.json({ message: 'Register flow started' });
 });
 

@@ -4,8 +4,13 @@ import { faker } from '@faker-js/faker';
 import { promises as fs, readFileSync } from 'fs';
 import puppeteer from 'puppeteer';
 
-const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
-const APP_PASSWORD = process.env.PASSWORD || config.password;
+let config = {};
+try {
+    config = JSON.parse(readFileSync('./config.json', 'utf-8'));
+} catch (e) {
+    console.log('No config.json found, using process.env or defaults.');
+}
+const APP_PASSWORD = process.env.PASSWORD || config.password || 'marinecapcut';
 const CONCURRENCY_LIMIT = 5; // 16GB RAM can handle 5-10 easily.
 
 // --- Helper Functions ---
@@ -287,7 +292,7 @@ async function joinSpace(browser, cookies, inviteUrl, socket, accountId) {
     }
 }
 
-async function processSingleAccount(jobId, domainList, socket) {
+async function processSingleAccount(jobId, domainList, customPassword, socket) {
     try {
         const domain = domainList[Math.floor(Math.random() * domainList.length)];
         const name = faker.internet.username().toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 5);
@@ -295,7 +300,7 @@ async function processSingleAccount(jobId, domainList, socket) {
 
         logToSocket(socket, `[${jobId}] Started: ${email}`, 'info');
 
-        const password = APP_PASSWORD;
+        const password = customPassword || APP_PASSWORD;
         const encryptedHexEmail = encryptToTargetHex(email);
         const encryptedHexPassword = encryptToTargetHex(password);
 
@@ -333,7 +338,7 @@ async function processSingleAccount(jobId, domainList, socket) {
     }
 }
 
-export async function runRegisterFlow(count, socket) {
+export async function runRegisterFlow(count, customPassword, socket) {
     logToSocket(socket, `Starting Parallel Registration (${count} accounts, ${CONCURRENCY_LIMIT} threads)`, 'info');
 
     const domainList = await getEmailRandom(socket);
@@ -349,7 +354,7 @@ export async function runRegisterFlow(count, socket) {
     async function worker(workerId) {
         while (jobs.length > 0) {
             const currentJob = jobs.shift(); // take first job
-            await processSingleAccount(currentJob, domainList, socket);
+            await processSingleAccount(currentJob, domainList, customPassword, socket);
         }
     }
 
