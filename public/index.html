@@ -873,18 +873,25 @@
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
+                <div class="form-row" style="margin-bottom: 12px; gap: 12px; align-items: flex-end;">
+                    <div class="form-group" style="flex: 1;">
                         <label for="loopCount">Số lượng tài khoản</label>
                         <input type="number" id="loopCount" class="input-field" value="1" min="1"
                             placeholder="Nhập số lượng...">
                     </div>
-                    <button onclick="startRegister()" class="btn btn-primary">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="registerPassword">Mật khẩu (Tùy chọn)</label>
+                        <input type="text" id="registerPassword" class="input-field" 
+                            value="marinecapcut" placeholder="Nhập để thay đổi">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button onclick="startRegister()" class="btn btn-primary" style="width: 100%;">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                             stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="5 3 19 12 5 21 5 3" />
                         </svg>
-                        Bắt đầu
+                        Bắt đầu đăng ký
                     </button>
                 </div>
             </div>
@@ -1107,6 +1114,7 @@
         // API calls
         async function startRegister() {
             const count = document.getElementById('loopCount').value;
+            const password = document.getElementById('registerPassword').value;
             if (!count || count < 1) { alert('Vui lòng nhập số lượng tài khoản!'); return; }
 
             // Reset results
@@ -1125,7 +1133,7 @@
             await fetch('/api/start-register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ count })
+                body: JSON.stringify({ count, password })
             });
         }
 
