@@ -415,23 +415,30 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                 await new Promise(r => setTimeout(r, 1000));
 
                 // Try "Tiếp tục" / "Continue" if it exists (old 2-step flow)
-                await page.evaluate(() => {
-                    const btns = Array.from(document.querySelectorAll('button.lv-btn-primary'));
-                    const btn = btns.find(b => b.innerText.includes('Tiếp tục') || b.innerText.includes('Continue'));
-                    if (btn) btn.click();
-                });
+                // Simulate Enter key to proceed to password step (bypasses language differences)
+                await page.keyboard.press('Enter');
 
                 // Wait a moment for possible page transition
-                await new Promise(r => setTimeout(r, 1500));
+                await new Promise(r => setTimeout(r, 2000));
 
-                // Find password field with multiple selectors
-                const passSelector = 'input[type="password"], input[name="signPassword"], input[placeholder*="mật khẩu"], input[placeholder*="password" i]';
-                await page.waitForSelector(passSelector, { timeout: 10000 });
+                // Find password field with multiple generic selectors
+                const passSelector = 'input[type="password"], input[name="signPassword"]';
+                
+                try {
+                    await page.waitForSelector(passSelector, { timeout: 10000 });
+                } catch (e) {
+                    await page.screenshot({ path: 'public/error_login.png' });
+                    throw new Error("Cannot find password field. See /error_login.png for screenshot.");
+                }
+
                 await page.click(passSelector);
                 await new Promise(r => setTimeout(r, 500));
-
-                // Type password slowly (50ms per character) to ensure it registers
+                
+                // Type password
                 await page.type(passSelector, password, { delay: 50 });
+                await new Promise(r => setTimeout(r, 500));
+                
+                await page.keyboard.press('Enter');
 
                 // Wait after typing and verify password was actually entered
                 await new Promise(r => setTimeout(r, 1000));
@@ -457,11 +464,11 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                 // Only click login after password is confirmed
                 await new Promise(r => setTimeout(r, 500));
 
-                // Click "Đăng nhập" / "Log in"
+                // Click the primary submit button (or press Enter)
+                await page.keyboard.press('Enter');
                 await page.evaluate(() => {
                     const btns = Array.from(document.querySelectorAll('button.lv-btn-primary'));
-                    const btn = btns.find(b => b.innerText.includes('Đăng nhập') || b.innerText.includes('Log in'));
-                    if (btn) btn.click();
+                    if (btns.length > 0) btns[0].click();
                 });
 
                 // Wait for navigation after login
