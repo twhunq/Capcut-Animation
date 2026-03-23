@@ -406,81 +406,115 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                 await page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
                 await installPopupDismisser(page);
 
-                const emailSelector = 'input[name="signUsername"]';
-                await page.waitForSelector(emailSelector, { timeout: 10000 });
-                await page.click(emailSelector);
-                await page.type(emailSelector, email);
-
-                // Small delay to let page settle after typing email
-                await new Promise(r => setTimeout(r, 1000));
-
-                // Try "Tiếp tục" / "Continue" if it exists (old 2-step flow)
-                // Simulate Enter key to proceed to password step (bypasses language differences)
-                await page.keyboard.press('Enter');
-
-                // Wait a moment for possible page transition
-                await new Promise(r => setTimeout(r, 2000));
-
-                // Find password field with multiple generic selectors
-                const passSelector = 'input[type="password"], input[name="signPassword"]';
+                // Updated selectors matching current CapCut login page (2-step flow)
+                const emailSelector = 'input.lv_sign_in_panel_wide-input, input.lv-input.lv_sign_in_panel_wide-input, input[placeholder*="email" i], input[placeholder*="Email" i], input[placeholder*="Nhập email" i]';
                 
                 try {
-                    await page.waitForSelector(passSelector, { timeout: 10000 });
+                    await page.waitForSelector(emailSelector, { timeout: 15000 });
+                } catch (e) {
+                    await page.screenshot({ path: 'public/error_login.png' });
+                    throw new Error("Cannot find email field. See /error_login.png for screenshot.");
+                }
+
+                await page.click(emailSelector);
+                await new Promise(r => setTimeout(r, 300));
+                await page.type(emailSelector, email, { delay: 30 });
+
+                // Small delay to let page settle after typing email
+                await new Promise(r => setTimeout(r, 800));
+
+                // Click the "Tiếp tục" / "Continue" button to proceed to password step
+                const continueSelector = 'button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
+                try {
+                    await page.waitForSelector(continueSelector, { timeout: 5000 });
+                    await page.evaluate((sel) => {
+                        const btns = document.querySelectorAll(sel);
+                        for (const btn of btns) {
+                            const text = btn.innerText.trim();
+                            if (text.includes('Tiếp tục') || text.includes('Continue') || text.includes('Next')) {
+                                btn.click();
+                                return;
+                            }
+                        }
+                        if (btns.length > 0) btns[0].click();
+                    }, continueSelector);
+                } catch (e) {
+                    // Fallback: press Enter
+                    await page.keyboard.press('Enter');
+                }
+
+                // Wait for password step to appear
+                await new Promise(r => setTimeout(r, 3000));
+
+                // Find password field
+                const passSelector = 'input[type="password"]';
+                
+                try {
+                    await page.waitForSelector(passSelector, { timeout: 15000 });
                 } catch (e) {
                     await page.screenshot({ path: 'public/error_login.png' });
                     throw new Error("Cannot find password field. See /error_login.png for screenshot.");
                 }
 
                 await page.click(passSelector);
-                await new Promise(r => setTimeout(r, 500));
+                await new Promise(r => setTimeout(r, 300));
                 
                 // Type password
-                await page.type(passSelector, password, { delay: 50 });
+                await page.type(passSelector, password, { delay: 30 });
                 await new Promise(r => setTimeout(r, 500));
-                
-                await page.keyboard.press('Enter');
-
-                // Wait after typing and verify password was actually entered
-                await new Promise(r => setTimeout(r, 1000));
 
                 // Double-check password field has content, retry if empty
-                const passValue = await page.evaluate((sel) => {
-                    const input = document.querySelector(sel);
+                const passValue = await page.evaluate(() => {
+                    const input = document.querySelector('input[type="password"]');
                     return input ? input.value : '';
-                }, passSelector);
+                });
 
                 if (!passValue) {
                     logToSocket(socket, `[${i + 1}] Password field empty, retrying...`, 'info');
-                    // Fallback: use keyboard to type
                     await page.click(passSelector);
                     await new Promise(r => setTimeout(r, 300));
+                    // Clear field first
+                    await page.evaluate(() => {
+                        const input = document.querySelector('input[type="password"]');
+                        if (input) { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
+                    });
                     for (const char of password) {
                         await page.keyboard.type(char);
-                        await new Promise(r => setTimeout(r, 80));
+                        await new Promise(r => setTimeout(r, 50));
                     }
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 500));
                 }
 
-                // Only click login after password is confirmed
-                await new Promise(r => setTimeout(r, 500));
-
-                // Click the primary submit button (or press Enter)
-                await page.keyboard.press('Enter');
-                await page.evaluate(() => {
-                    const btns = Array.from(document.querySelectorAll('button.lv-btn-primary'));
-                    if (btns.length > 0) btns[0].click();
-                });
+                // Click the "Đăng nhập" / "Log in" button
+                const loginBtnSelector = 'button.lv_sign_in_panel_wide-sign-in-button, button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
+                try {
+                    await page.evaluate((sel) => {
+                        const btns = document.querySelectorAll(sel);
+                        for (const btn of btns) {
+                            const text = btn.innerText.trim();
+                            if (text.includes('Đăng nhập') || text.includes('Log in') || text.includes('Login') || text.includes('Sign in')) {
+                                btn.click();
+                                return;
+                            }
+                        }
+                        if (btns.length > 0) btns[0].click();
+                    }, loginBtnSelector);
+                } catch (e) {
+                    await page.keyboard.press('Enter');
+                }
 
                 // Wait for navigation after login
                 await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
+                // Extra wait for page to settle
+                await new Promise(r => setTimeout(r, 2000));
 
                 // --- VERIFY LOGIN SUCCESS ---
                 const currentUrl = page.url();
-                const isStillOnLogin = currentUrl.includes('/login');
+                const isStillOnLogin = currentUrl.includes('/login') || currentUrl.includes('/signup');
                 if (isStillOnLogin) {
                     // Check for error messages on the page
                     const errorMsg = await page.evaluate(() => {
-                        const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red');
+                        const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red, [class*="lv_sign_in_panel_wide-error"]');
                         return errEl ? errEl.innerText : '';
                     }).catch(() => '');
                     logToSocket(socket, `[${i + 1}] Login FAILED: ${email} - ${errorMsg || 'Still on login page'}`, 'error');
