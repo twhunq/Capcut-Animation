@@ -415,6 +415,23 @@ export async function runRegisterFlow(count, customPassword, socket) {
 
 
 
+async function nativeClick(page, selector, buttonTextMatches = null) {
+    const btns = await page.$$(selector);
+    for (const handle of btns) {
+        if (buttonTextMatches) {
+            const text = await page.evaluate(el => el.innerText, handle).catch(() => '');
+            if (buttonTextMatches.some(m => text && text.includes(m))) {
+                await handle.click().catch(() => {});
+                return true;
+            }
+        } else {
+            await handle.click().catch(() => {});
+            return true;
+        }
+    }
+    return false;
+}
+
 export async function runLoginFlow(accountList, inviteUrl, socket) {
     const concurrencyLimit = 3;
     logToSocket(socket, `Starting Turbo Login Loop (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
@@ -467,8 +484,10 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
                     await new Promise(r => setTimeout(r, 600)); // Let React validate email
 
-                    // Use trusted keyboard event to submit instead of untrusted DOM click
-                    await page.keyboard.press('Enter');
+                    // Use explicit trusted mouse click to continue (CapCut inputs ignore Enter keys)
+                    const continueSelector = 'button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
+                    const clickedContinue = await nativeClick(page, continueSelector, ['Tiếp tục', 'Continue', 'Next', 'Lanjut']);
+                    if (!clickedContinue) await nativeClick(page, continueSelector); // fallback to raw selector click
 
                     const passSelector = 'input[type="password"]';
                     try {
@@ -479,6 +498,10 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                             const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"]');
                             return errEl ? errEl.innerText : '';
                         }).catch(() => '');
+                        
+                        const hasCaptcha = await page.evaluate(() => !!document.querySelector('iframe[src*="captcha"], iframe[src*="verify"], iframe[src*="secsdk"]')).catch(() => false);
+                        
+                        if (hasCaptcha) throw new Error("Blocked by Captcha on email step.");
                         throw new Error(errorMsg ? `Account error: ${errorMsg}` : "Timeout/Cannot find password field.");
                     }
 
@@ -487,8 +510,11 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     
                     await new Promise(r => setTimeout(r, 600)); // Let React validate password
 
-                    // Use trusted keyboard event to submit
-                    await page.keyboard.press('Enter');
+                    // Use explicit trusted mouse click to submit login
+                    const loginBtnSelector = 'button.lv_sign_in_panel_wide-sign-in-button, button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
+                    const clickedLogin = await nativeClick(page, loginBtnSelector, ['Đăng nhập', 'Log in', 'Login', 'Sign in', 'Masuk']);
+                    if (!clickedLogin) await nativeClick(page, loginBtnSelector); // fallback
+
 
                     try {
                         await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -508,7 +534,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                         }), 8000, 'Evaluate error message').catch(() => '');
                         
                         // Fallback check if it's a captcha iframe
-                        const hasCaptcha = await page.evaluate(() => !!document.querySelector('iframe[src*="captcha"]')).catch(() => false);
+                        const hasCaptcha = await page.evaluate(() => !!document.querySelector('iframe[src*="captcha"], iframe[src*="verify"], iframe[src*="secsdk"]')).catch(() => false);
                         
                         logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errorMsg || (hasCaptcha ? 'Blocked by Captcha' : 'Still on login page')}`, 'error');
                         if (socket) socket.emit('failed-account', accLine);
@@ -532,21 +558,12 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                         }
 
                         // Use Native Puppeteer click for Trusted event
-                        let clicked = false;
-                        const btns = await page.$$(joinSelector);
-                        for (const handle of btns) {
-                            const text = await page.evaluate(el => el.innerText, handle).catch(() => '');
-                            if (text && (text.includes('Gửi') || text.includes('Join') || text.includes('Accept') || text.includes('Bergabung'))) {
-                                await handle.click();
-                                clicked = true;
-                                break;
-                            }
-                        }
+                        const clickedJoin = await nativeClick(page, joinSelector, ['Gửi', 'Join', 'Accept', 'Bergabung']);
+                        let clicked = clickedJoin;
                         
                         // Fallback click on the first valid button if text filter missed
-                        if (!clicked && btns.length > 0) {
-                            await btns[0].click().catch(() => {});
-                            clicked = true;
+                        if (!clicked) {
+                            clicked = await nativeClick(page, joinSelector);
                         }
 
                         if (!clicked) {
