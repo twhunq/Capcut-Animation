@@ -228,6 +228,42 @@ async function verify_sendRequest(encryptedEmail, encryptedPassword, encryptedCo
     }
 }
 
+async function login_sendRequest(encryptedEmail, encryptedPassword) {
+    try {
+        // CapCut uses regional subdomains for login; login.us handles global accounts correctly
+        const url = new URL('https://login.us.capcut.com/passport/web/email/login/');
+        const queryParams = {
+            aid: '348188',
+            account_sdk_source: 'web',
+            language: 'vi-VN',
+            verifyFp: 'verify_mn3gh0wp_z2hPtKJA_w76V_4HQh_A2Hz_BSJHwJLGCB5g',
+            check_region: '1'
+        };
+        Object.entries(queryParams).forEach(([key, value]) => { url.searchParams.append(key, value); });
+
+        const formData = new URLSearchParams();
+        formData.append('mix_mode', '1');
+        formData.append('email', encryptedEmail);
+        formData.append('password', encryptedPassword);
+        formData.append('fixed_mix_mode', '1');
+
+        const response = await fetchWithTimeout(url.toString(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: formData,
+            timeout: 15000
+        });
+        const data = await response.json();
+        const cookies = response.headers.raw()['set-cookie'];
+        return { data, cookies };
+    } catch (error) {
+        return { data: { message: error.message } };
+    }
+}
+
 async function saveToFile(filename, data) {
     await fs.writeFile(filename, data, { flag: 'a' });
 }
@@ -371,18 +407,16 @@ export async function runRegisterFlow(count, customPassword, socket) {
 }
 
 export async function runLoginFlow(accountList, inviteUrl, socket) {
-    // Login flow is usually fast enough sequentially or can be parallelized similarly.
-    // For now, let's keep sequential or semi-parallel if user needs. 
-    // Given the request focused on speed (likely creation), I'll leave Login sequential 
-    // BUT wrapped in the same robust error handling structure.
-    // ... (Login logic similar to previous but robust)
-    // For brevity in this edit, I will simple execute it sequentially but with single browser.
-
-    logToSocket(socket, `Starting Login Loop (${accountList.length} accounts)`, 'info');
-    let browser;
-    try {
-        browser = await launchSharedBrowser();
-    } catch (e) { return; }
+    logToSocket(socket, `Starting API Login Loop (${accountList.length} accounts)`, 'info');
+    let browser = null;
+    if (inviteUrl) {
+        try {
+            browser = await launchSharedBrowser();
+        } catch (e) {
+            logToSocket(socket, 'Failed to launch headless browser for team join.', 'error');
+            return;
+        }
+    }
 
     try {
         for (let i = 0; i < accountList.length; i++) {
@@ -391,190 +425,95 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
             const parts = accLine.split('|');
             const email = parts[0];
-            const password = parts[1] || APP_PASSWORD; // Fallback to config password
+            const password = parts[1] || APP_PASSWORD; 
             if (!email) continue;
 
-            logToSocket(socket, `[${i + 1}/${accountList.length}] Login: ${email}`, 'info');
+            logToSocket(socket, `[${i + 1}/${accountList.length}] API Login: ${email}`, 'info');
 
-            let context;
-            let accountFailed = false;
             try {
-                context = await browser.createBrowserContext();
-                const page = await context.newPage();
-
-                // --- STEP 1: LOGIN ---
-                await page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
-                await installPopupDismisser(page);
-
-                // Updated selectors matching current CapCut login page (2-step flow)
-                const emailSelector = 'input.lv_sign_in_panel_wide-input, input.lv-input.lv_sign_in_panel_wide-input, input[placeholder*="email" i], input[placeholder*="Email" i], input[placeholder*="Nhập email" i]';
+                // --- STEP 1: API LOGIN ---
+                const encryptedHexEmail = encryptToTargetHex(email);
+                const encryptedHexPassword = encryptToTargetHex(password);
                 
-                try {
-                    await page.waitForSelector(emailSelector, { timeout: 15000 });
-                } catch (e) {
-                    await page.screenshot({ path: 'public/error_login.png' });
-                    throw new Error("Cannot find email field. See /error_login.png for screenshot.");
-                }
-
-                await page.click(emailSelector);
-                await new Promise(r => setTimeout(r, 300));
-                await page.type(emailSelector, email, { delay: 30 });
-
-                // Small delay to let page settle after typing email
-                await new Promise(r => setTimeout(r, 800));
-
-                // Click the "Tiếp tục" / "Continue" button to proceed to password step
-                const continueSelector = 'button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
-                try {
-                    await page.waitForSelector(continueSelector, { timeout: 5000 });
-                    await page.evaluate((sel) => {
-                        const btns = document.querySelectorAll(sel);
-                        for (const btn of btns) {
-                            const text = btn.innerText.trim();
-                            if (text.includes('Tiếp tục') || text.includes('Continue') || text.includes('Next')) {
-                                btn.click();
-                                return;
-                            }
-                        }
-                        if (btns.length > 0) btns[0].click();
-                    }, continueSelector);
-                } catch (e) {
-                    // Fallback: press Enter
-                    await page.keyboard.press('Enter');
-                }
-
-                // Wait for password step to appear
-                await new Promise(r => setTimeout(r, 3000));
-
-                // Find password field
-                const passSelector = 'input[type="password"]';
+                const loginRes = await login_sendRequest(encryptedHexEmail, encryptedHexPassword);
                 
-                try {
-                    await page.waitForSelector(passSelector, { timeout: 15000 });
-                } catch (e) {
-                    await page.screenshot({ path: 'public/error_login.png' });
-                    throw new Error("Cannot find password field. See /error_login.png for screenshot.");
-                }
-
-                await page.click(passSelector);
-                await new Promise(r => setTimeout(r, 300));
-                
-                // Type password
-                await page.type(passSelector, password, { delay: 30 });
-                await new Promise(r => setTimeout(r, 500));
-
-                // Double-check password field has content, retry if empty
-                const passValue = await page.evaluate(() => {
-                    const input = document.querySelector('input[type="password"]');
-                    return input ? input.value : '';
-                });
-
-                if (!passValue) {
-                    logToSocket(socket, `[${i + 1}] Password field empty, retrying...`, 'info');
-                    await page.click(passSelector);
-                    await new Promise(r => setTimeout(r, 300));
-                    // Clear field first
-                    await page.evaluate(() => {
-                        const input = document.querySelector('input[type="password"]');
-                        if (input) { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
-                    });
-                    for (const char of password) {
-                        await page.keyboard.type(char);
-                        await new Promise(r => setTimeout(r, 50));
-                    }
-                    await new Promise(r => setTimeout(r, 500));
-                }
-
-                // Click the "Đăng nhập" / "Log in" button
-                const loginBtnSelector = 'button.lv_sign_in_panel_wide-sign-in-button, button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
-                try {
-                    await page.evaluate((sel) => {
-                        const btns = document.querySelectorAll(sel);
-                        for (const btn of btns) {
-                            const text = btn.innerText.trim();
-                            if (text.includes('Đăng nhập') || text.includes('Log in') || text.includes('Login') || text.includes('Sign in')) {
-                                btn.click();
-                                return;
-                            }
-                        }
-                        if (btns.length > 0) btns[0].click();
-                    }, loginBtnSelector);
-                } catch (e) {
-                    await page.keyboard.press('Enter');
-                }
-
-                // Wait for navigation after login
-                await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
-                // Extra wait for page to settle
-                await new Promise(r => setTimeout(r, 2000));
-
-                // --- VERIFY LOGIN SUCCESS ---
-                const currentUrl = page.url();
-                const isStillOnLogin = currentUrl.includes('/login') || currentUrl.includes('/signup');
-                if (isStillOnLogin) {
-                    // Check for error messages on the page
-                    const errorMsg = await page.evaluate(() => {
-                        const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red, [class*="lv_sign_in_panel_wide-error"]');
-                        return errEl ? errEl.innerText : '';
-                    }).catch(() => '');
-                    logToSocket(socket, `[${i + 1}] Login FAILED: ${email} - ${errorMsg || 'Still on login page'}`, 'error');
-                    accountFailed = true;
+                if (loginRes.data?.message !== "success") {
+                    const errorMsg = loginRes.data?.data?.description || loginRes.data?.message || 'Unknown error';
+                    logToSocket(socket, `[${i + 1}] Login FAILED: ${email} - ${errorMsg}`, 'error');
                     if (socket) socket.emit('failed-account', accLine);
                     continue;
                 }
 
                 logToSocket(socket, `[${i + 1}] Login OK: ${email}`, 'info');
 
-                // --- STEP 2: JOIN TEAM ---
-                await page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                await installPopupDismisser(page);
+                // --- STEP 2: JOIN TEAM VIA BROWSER (if URL provided) ---
+                if (inviteUrl && browser && loginRes.cookies) {
+                    let context;
+                    try {
+                        context = await browser.createBrowserContext();
+                        const page = await context.newPage();
+                        
+                        // Set cookies from API response
+                        const cookieObjects = loginRes.cookies.map(c => {
+                            const [nameValue, ...rest] = c.split(';');
+                            const [name, ...valueParts] = nameValue.split('=');
+                            return {
+                                name: name.trim(),
+                                value: valueParts.join('=').trim(),
+                                domain: '.capcut.com',
+                                path: '/',
+                            };
+                        });
+                        await page.setCookie(...cookieObjects);
 
-                const joinSelector = "button.lv-btn.lv-btn-primary";
-                const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 10000 }).catch(() => null);
+                        await page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                        await installPopupDismisser(page);
 
-                if (!joinBtnFound) {
-                    logToSocket(socket, `[${i + 1}] Join FAILED: ${email} - Join button not found`, 'error');
-                    accountFailed = true;
-                    if (socket) socket.emit('failed-account', accLine);
-                    continue;
-                }
+                        const joinSelector = "button.lv-btn.lv-btn-primary";
+                        const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 10000 }).catch(() => null);
 
-                const clicked = await page.evaluate((sel) => {
-                    const btns = document.querySelectorAll(sel);
-                    for (const btn of btns) {
-                        if (btn.innerText.includes('Gửi') || btn.innerText.includes('Join') || btn.innerText.includes('Accept')) {
-                            btn.click();
-                            return true;
+                        if (!joinBtnFound) {
+                            logToSocket(socket, `[${i + 1}] Join FAILED: ${email} - Join button not found on page`, 'error');
+                            if (socket) socket.emit('failed-account', accLine);
+                            continue;
                         }
+
+                        const clicked = await page.evaluate((sel) => {
+                            const btns = document.querySelectorAll(sel);
+                            for (const btn of btns) {
+                                if (btn.innerText.includes('Gửi') || btn.innerText.includes('Join') || btn.innerText.includes('Accept')) {
+                                    btn.click();
+                                    return true;
+                                }
+                            }
+                            if (btns.length > 0) { btns[0].click(); return true; }
+                            return false;
+                        }, joinSelector);
+
+                        if (!clicked) {
+                            logToSocket(socket, `[${i + 1}] Join FAILED: ${email} - Could not auto-click join button`, 'error');
+                            if (socket) socket.emit('failed-account', accLine);
+                            continue;
+                        }
+
+                        // Wait a moment to confirm join action went through
+                        await new Promise(r => setTimeout(r, 2000));
+                        logToSocket(socket, `[${i + 1}] Join Team Success: ${email}`, 'success');
+
+                    } finally {
+                        if (context) await context.close();
                     }
-                    if (btns.length > 0) { btns[0].click(); return true; }
-                    return false;
-                }, joinSelector);
-
-                if (!clicked) {
-                    logToSocket(socket, `[${i + 1}] Join FAILED: ${email} - Could not click join button`, 'error');
-                    accountFailed = true;
-                    if (socket) socket.emit('failed-account', accLine);
-                    continue;
+                } else {
+                    logToSocket(socket, `[${i + 1}] Success (No Team Link): ${email}`, 'success');
                 }
-
-                // Wait a moment to confirm join action went through
-                await new Promise(r => setTimeout(r, 2000));
-
-                logToSocket(socket, `[${i + 1}] Success: ${email}`, 'success');
 
             } catch (error) {
-                logToSocket(socket, `[${i + 1}] Failed: ${error.message}`, 'error');
-                // Emit failed account separately
-                if (socket) {
-                    socket.emit('failed-account', accLine);
-                }
-            } finally {
-                if (context) await context.close();
+                logToSocket(socket, `[${i + 1}] Failed API or Browser: ${error.message}`, 'error');
+                if (socket) socket.emit('failed-account', accLine);
             }
         }
     } finally {
-        await browser.close();
+        if (browser) await browser.close();
         logToSocket(socket, 'Login Jobs Completed', 'success');
     }
 }
