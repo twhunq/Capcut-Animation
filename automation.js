@@ -403,7 +403,7 @@ const withTimeout = (promise, ms, name = 'Puppeteer operation') => Promise.race(
 ]);
 
 export async function runLoginFlow(accountList, inviteUrl, socket) {
-    const concurrencyLimit = 5;
+    const concurrencyLimit = 3;
     logToSocket(socket, `Starting Turbo Login Loop (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
     let browser;
     try {
@@ -444,19 +444,19 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
                     const emailSelector = 'input.lv_sign_in_panel_wide-input, input.lv-input.lv_sign_in_panel_wide-input, input[placeholder*="email" i], input[placeholder*="Nhập email" i]';
                     try {
-                        await page.waitForSelector(emailSelector, { timeout: 8000 });
+                        await page.waitForSelector(emailSelector, { timeout: 15000 });
                     } catch (e) {
                         throw new Error("Timeout/Cannot find email field.");
                     }
 
-                    await withTimeout(page.click(emailSelector), 5000, 'Click email field');
-                    await page.type(emailSelector, email, { delay: 0 }); // Fast typing
+                    await withTimeout(page.click(emailSelector), 10000, 'Click email field');
+                    await page.type(emailSelector, email, { delay: 30 }); // Human-like typing
 
                     await new Promise(r => setTimeout(r, 200));
 
                     const continueSelector = 'button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
                     try {
-                        await page.waitForSelector(continueSelector, { timeout: 5000 });
+                        await page.waitForSelector(continueSelector, { timeout: 10000 });
                         await withTimeout(page.evaluate((sel) => {
                             const btns = document.querySelectorAll(sel);
                             for (const btn of btns) {
@@ -467,20 +467,20 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                                 }
                             }
                             if (btns.length > 0) btns[0].click();
-                        }, continueSelector), 5000, 'Evaluate continue click');
+                        }, continueSelector), 10000, 'Evaluate continue click');
                     } catch (e) {
                         await page.keyboard.press('Enter');
                     }
 
                     const passSelector = 'input[type="password"]';
                     try {
-                        await page.waitForSelector(passSelector, { timeout: 8000, visible: true });
+                        await page.waitForSelector(passSelector, { timeout: 15000, visible: true });
                     } catch (e) {
                         throw new Error("Timeout/Cannot find password field.");
                     }
 
-                    await withTimeout(page.click(passSelector), 5000, 'Click password field');
-                    await page.type(passSelector, password, { delay: 0 }); // Fast typing
+                    await withTimeout(page.click(passSelector), 10000, 'Click password field');
+                    await page.type(passSelector, password, { delay: 30 }); // Human-like typing
                     
                     await new Promise(r => setTimeout(r, 200));
 
@@ -496,17 +496,17 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                                 }
                             }
                             if (btns.length > 0) btns[0].click();
-                        }, loginBtnSelector), 5000, 'Evaluate login click');
+                        }, loginBtnSelector), 10000, 'Evaluate login click');
                     } catch (e) {
                         await page.keyboard.press('Enter');
                     }
 
                     try {
-                        await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
+                        await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 });
                     } catch (e) {
                         // ignore timeout
                     }
-                    await new Promise(r => setTimeout(r, 1000)); // Minor buffer for CapCut post-login redirect routing
+                    await new Promise(r => setTimeout(r, 1500)); // Minor buffer for CapCut post-login redirect routing
 
                     // --- VERIFY LOGIN SUCCESS ---
                     const currentUrl = page.url();
@@ -515,7 +515,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                         const errorMsg = await withTimeout(page.evaluate(() => {
                             const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red, [class*="lv_sign_in_panel_wide-error"]');
                             return errEl ? errEl.innerText : '';
-                        }), 5000, 'Evaluate error message').catch(() => '');
+                        }), 8000, 'Evaluate error message').catch(() => '');
                         
                         logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errorMsg || 'Still on login page'}`, 'error');
                         if (socket) socket.emit('failed-account', accLine);
@@ -530,7 +530,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                         await installPopupDismisser(page);
 
                         const joinSelector = "button.lv-btn.lv-btn-primary";
-                        const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 8000 }).catch(() => null);
+                        const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 15000 }).catch(() => null);
 
                         if (!joinBtnFound) {
                             logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Join button not found on page`, 'error');
@@ -548,7 +548,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                             }
                             if (btns.length > 0) { btns[0].click(); return true; }
                             return false;
-                        }, joinSelector), 5000, 'Evaluate join click').catch(() => false);
+                        }, joinSelector), 10000, 'Evaluate join click').catch(() => false);
 
                         if (!clicked) {
                             logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Could not auto-click join button`, 'error');
