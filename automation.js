@@ -397,6 +397,11 @@ export async function runRegisterFlow(count, customPassword, socket) {
     if (socket) socket.emit('register-complete');
 }
 
+const withTimeout = (promise, ms, name = 'Puppeteer operation') => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${name} timed out after ${ms}ms`)), ms))
+]);
+
 export async function runLoginFlow(accountList, inviteUrl, socket) {
     const concurrencyLimit = 5;
     logToSocket(socket, `Starting Turbo Login Loop (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
@@ -429,7 +434,12 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     await page.setViewport({ width: 1366, height: 768 });
 
                     // --- STEP 1: UI LOGIN IN STEALTH BROWSER ---
-                    await page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
+                    try {
+                        await withTimeout(page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }), 32000, 'Goto login');
+                    } catch (e) {
+                        throw new Error("Timeout/Failed to load login page.");
+                    }
+                    
                     await installPopupDismisser(page);
 
                     const emailSelector = 'input.lv_sign_in_panel_wide-input, input.lv-input.lv_sign_in_panel_wide-input, input[placeholder*="email" i], input[placeholder*="Nhập email" i]';
@@ -439,7 +449,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                         throw new Error("Timeout/Cannot find email field.");
                     }
 
-                    await page.click(emailSelector);
+                    await withTimeout(page.click(emailSelector), 5000, 'Click email field');
                     await page.type(emailSelector, email, { delay: 0 }); // Fast typing
 
                     await new Promise(r => setTimeout(r, 200));
@@ -447,7 +457,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     const continueSelector = 'button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
                     try {
                         await page.waitForSelector(continueSelector, { timeout: 5000 });
-                        await page.evaluate((sel) => {
+                        await withTimeout(page.evaluate((sel) => {
                             const btns = document.querySelectorAll(sel);
                             for (const btn of btns) {
                                 const text = btn.innerText.trim();
@@ -457,7 +467,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                                 }
                             }
                             if (btns.length > 0) btns[0].click();
-                        }, continueSelector);
+                        }, continueSelector), 5000, 'Evaluate continue click');
                     } catch (e) {
                         await page.keyboard.press('Enter');
                     }
@@ -469,14 +479,14 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                         throw new Error("Timeout/Cannot find password field.");
                     }
 
-                    await page.click(passSelector);
+                    await withTimeout(page.click(passSelector), 5000, 'Click password field');
                     await page.type(passSelector, password, { delay: 0 }); // Fast typing
                     
                     await new Promise(r => setTimeout(r, 200));
 
                     const loginBtnSelector = 'button.lv_sign_in_panel_wide-sign-in-button, button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
                     try {
-                        await page.evaluate((sel) => {
+                        await withTimeout(page.evaluate((sel) => {
                             const btns = document.querySelectorAll(sel);
                             for (const btn of btns) {
                                 const text = btn.innerText.trim();
@@ -486,22 +496,27 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                                 }
                             }
                             if (btns.length > 0) btns[0].click();
-                        }, loginBtnSelector);
+                        }, loginBtnSelector), 5000, 'Evaluate login click');
                     } catch (e) {
                         await page.keyboard.press('Enter');
                     }
 
-                    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => { });
+                    try {
+                        await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
+                    } catch (e) {
+                        // ignore timeout
+                    }
                     await new Promise(r => setTimeout(r, 1000)); // Minor buffer for CapCut post-login redirect routing
 
                     // --- VERIFY LOGIN SUCCESS ---
                     const currentUrl = page.url();
                     const isStillOnLogin = currentUrl.includes('/login') || currentUrl.includes('/signup');
                     if (isStillOnLogin) {
-                        const errorMsg = await page.evaluate(() => {
+                        const errorMsg = await withTimeout(page.evaluate(() => {
                             const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red, [class*="lv_sign_in_panel_wide-error"]');
                             return errEl ? errEl.innerText : '';
-                        }).catch(() => '');
+                        }), 5000, 'Evaluate error message').catch(() => '');
+                        
                         logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errorMsg || 'Still on login page'}`, 'error');
                         if (socket) socket.emit('failed-account', accLine);
                         return; 
@@ -511,7 +526,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
                     // --- STEP 2: JOIN TEAM VIA BROWSER (if URL provided) ---
                     if (inviteUrl) {
-                        await page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
+                        await withTimeout(page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }), 32000, 'Goto invite');
                         await installPopupDismisser(page);
 
                         const joinSelector = "button.lv-btn.lv-btn-primary";
@@ -523,7 +538,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                             return;
                         }
 
-                        const clicked = await page.evaluate((sel) => {
+                        const clicked = await withTimeout(page.evaluate((sel) => {
                             const btns = document.querySelectorAll(sel);
                             for (const btn of btns) {
                                 if (btn.innerText.includes('Gửi') || btn.innerText.includes('Join') || btn.innerText.includes('Accept') || btn.innerText.includes('Bergabung')) {
@@ -533,7 +548,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                             }
                             if (btns.length > 0) { btns[0].click(); return true; }
                             return false;
-                        }, joinSelector);
+                        }, joinSelector), 5000, 'Evaluate join click').catch(() => false);
 
                         if (!clicked) {
                             logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Could not auto-click join button`, 'error');
