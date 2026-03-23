@@ -398,8 +398,8 @@ export async function runRegisterFlow(count, customPassword, socket) {
 }
 
 export async function runLoginFlow(accountList, inviteUrl, socket) {
-    const concurrencyLimit = 3;
-    logToSocket(socket, `Starting Stealth Login Loop (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
+    const concurrencyLimit = 5;
+    logToSocket(socket, `Starting Turbo Login Loop (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
     let browser;
     try {
         browser = await launchSharedBrowser();
@@ -429,14 +429,14 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     await page.setViewport({ width: 1366, height: 768 });
 
                     // --- STEP 1: UI LOGIN IN STEALTH BROWSER ---
-                    await page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+                    await page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
                     await installPopupDismisser(page);
 
                     const emailSelector = 'input.lv_sign_in_panel_wide-input, input.lv-input.lv_sign_in_panel_wide-input, input[placeholder*="email" i], input[placeholder*="Nhập email" i]';
                     try {
-                        await page.waitForSelector(emailSelector, { timeout: 15000 });
+                        await page.waitForSelector(emailSelector, { timeout: 8000 });
                     } catch (e) {
-                        throw new Error("Cannot find email field. See /error_login.png for screenshot.");
+                        throw new Error("Timeout/Cannot find email field.");
                     }
 
                     await page.click(emailSelector);
@@ -464,10 +464,9 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
                     const passSelector = 'input[type="password"]';
                     try {
-                        // Wait up to 15s for the password field to be visible since it transitions in
-                        await page.waitForSelector(passSelector, { timeout: 15000, visible: true });
+                        await page.waitForSelector(passSelector, { timeout: 8000, visible: true });
                     } catch (e) {
-                        throw new Error("Cannot find password field. See /error_login.png for screenshot.");
+                        throw new Error("Timeout/Cannot find password field.");
                     }
 
                     await page.click(passSelector);
@@ -492,8 +491,8 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                         await page.keyboard.press('Enter');
                     }
 
-                    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
-                    await new Promise(r => setTimeout(r, 1500)); // Minor buffer for CapCut post-login redirect routing
+                    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => { });
+                    await new Promise(r => setTimeout(r, 1000)); // Minor buffer for CapCut post-login redirect routing
 
                     // --- VERIFY LOGIN SUCCESS ---
                     const currentUrl = page.url();
@@ -512,11 +511,11 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
                     // --- STEP 2: JOIN TEAM VIA BROWSER (if URL provided) ---
                     if (inviteUrl) {
-                        await page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                        await page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
                         await installPopupDismisser(page);
 
                         const joinSelector = "button.lv-btn.lv-btn-primary";
-                        const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 10000 }).catch(() => null);
+                        const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 8000 }).catch(() => null);
 
                         if (!joinBtnFound) {
                             logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Join button not found on page`, 'error');
@@ -550,7 +549,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     logToSocket(socket, `[${globalIndex + 1}] Failed API or Browser: ${error.message}`, 'error');
                     if (socket) socket.emit('failed-account', accLine);
                 } finally {
-                    if (context) await context.close();
+                    if (context) await context.close().catch(() => {});
                 }
             });
 
