@@ -473,8 +473,7 @@ async function apiLogin(email, password) {
 }
 
 export async function runLoginFlow(accountList, inviteUrl, socket) {
-    const concurrencyLimit = 3;
-    logToSocket(socket, `Starting API Login Flow (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
+    logToSocket(socket, `Starting API Login Flow (${accountList.length} accounts, Sequential with anti-rate-limit)`, 'info');
 
     // Only launch browser if we need to join a team
     let browser = null;
@@ -487,69 +486,93 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
     }
 
     try {
-        for (let i = 0; i < accountList.length; i += concurrencyLimit) {
-            const batch = accountList.slice(i, i + concurrencyLimit);
-            const promises = batch.map(async (accLine, idx) => {
-                const globalIndex = i + idx;
+        for (let i = 0; i < accountList.length; i++) {
+            let accLine = accountList[i].trim();
+            if (!accLine) continue;
 
-                accLine = accLine.trim();
-                if (!accLine) return;
+            const parts = accLine.split('|');
+            const email = parts[0];
+            const password = parts[1] || APP_PASSWORD;
+            if (!email) continue;
 
-                const parts = accLine.split('|');
-                const email = parts[0];
-                const password = parts[1] || APP_PASSWORD;
-                if (!email) return;
+            logToSocket(socket, `[${i + 1}/${accountList.length}] Login: ${email}`, 'info');
 
-                logToSocket(socket, `[${globalIndex + 1}/${accountList.length}] Login: ${email}`, 'info');
+            try {
+                // --- STEP 1: API LOGIN with retry on rate limit ---
+                let loginResult = null;
+                let retries = 0;
+                const maxRetries = 3;
 
-                try {
-                    // --- STEP 1: API LOGIN (no browser needed) ---
-                    const loginResult = await apiLogin(email, password);
+                while (retries <= maxRetries) {
+                    loginResult = await apiLogin(email, password);
 
-                    if (!loginResult.data || loginResult.data.message !== 'success') {
-                        const errDesc = loginResult.data?.data?.description || loginResult.data?.message || 'Unknown error';
-                        logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errDesc}`, 'error');
-                        if (socket) socket.emit('failed-account', accLine);
-                        return;
+                    const errCode = loginResult.data?.data?.error_code;
+                    const errDesc = loginResult.data?.data?.description || '';
+
+                    // Error code 7 = rate limit
+                    if (errCode === 7 || errDesc.includes('Maximum number of attempts')) {
+                        retries++;
+                        if (retries > maxRetries) {
+                            logToSocket(socket, `[${i + 1}] Rate limited, max retries reached: ${email}`, 'error');
+                            if (socket) socket.emit('failed-account', accLine);
+                            loginResult = null;
+                            break;
+                        }
+                        const waitTime = 10 * retries; // 10s, 20s, 30s
+                        logToSocket(socket, `[${i + 1}] Rate limited, waiting ${waitTime}s before retry ${retries}/${maxRetries}...`, 'warn');
+                        await new Promise(r => setTimeout(r, waitTime * 1000));
+                        continue;
                     }
 
-                    logToSocket(socket, `[${globalIndex + 1}] Login OK: ${email}`, 'success');
+                    break; // Not rate limited, proceed
+                }
 
-                    // --- STEP 2: JOIN TEAM VIA BROWSER (if URL provided & browser available) ---
-                    if (inviteUrl && browser) {
-                        let context;
-                        try {
-                            context = await browser.createBrowserContext();
-                            const page = await context.newPage();
-                            await page.setViewport({ width: 1366, height: 768 });
+                if (!loginResult) continue;
 
-                            // Inject cookies from API login response
-                            if (loginResult.cookies && loginResult.cookies.length > 0) {
-                                const cookieObjects = loginResult.cookies.map(c => {
-                                    const [nameValue, ...rest] = c.split(';');
-                                    const [name, ...valueParts] = nameValue.split('=');
-                                    return {
-                                        name: name.trim(),
-                                        value: valueParts.join('=').trim(),
-                                        domain: '.capcut.com',
-                                        path: '/',
-                                    };
-                                });
-                                await page.setCookie(...cookieObjects);
-                            }
+                if (!loginResult.data || loginResult.data.message !== 'success') {
+                    const errDesc = loginResult.data?.data?.description || loginResult.data?.message || 'Unknown error';
+                    logToSocket(socket, `[${i + 1}] Login FAILED: ${email} - ${errDesc}`, 'error');
+                    if (socket) socket.emit('failed-account', accLine);
+                    // Small delay even on failure to avoid hammering
+                    await new Promise(r => setTimeout(r, 2000));
+                    continue;
+                }
 
-                            await withTimeout(page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }), 32000, 'Goto invite');
-                            await installPopupDismisser(page);
+                logToSocket(socket, `[${i + 1}] Login OK: ${email}`, 'success');
 
-                            const joinSelector = "button.lv-btn.lv-btn-primary";
-                            const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 15000 }).catch(() => null);
+                // --- STEP 2: JOIN TEAM VIA BROWSER (if URL provided & browser available) ---
+                if (inviteUrl && browser) {
+                    let context;
+                    try {
+                        context = await browser.createBrowserContext();
+                        const page = await context.newPage();
+                        await page.setViewport({ width: 1366, height: 768 });
 
-                            if (!joinBtnFound) {
-                                logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Join button not found`, 'error');
-                                if (socket) socket.emit('failed-account', accLine);
-                                return;
-                            }
+                        // Inject cookies from API login response
+                        if (loginResult.cookies && loginResult.cookies.length > 0) {
+                            const cookieObjects = loginResult.cookies.map(c => {
+                                const [nameValue, ...rest] = c.split(';');
+                                const [name, ...valueParts] = nameValue.split('=');
+                                return {
+                                    name: name.trim(),
+                                    value: valueParts.join('=').trim(),
+                                    domain: '.capcut.com',
+                                    path: '/',
+                                };
+                            });
+                            await page.setCookie(...cookieObjects);
+                        }
 
+                        await withTimeout(page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }), 32000, 'Goto invite');
+                        await installPopupDismisser(page);
+
+                        const joinSelector = "button.lv-btn.lv-btn-primary";
+                        const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 15000 }).catch(() => null);
+
+                        if (!joinBtnFound) {
+                            logToSocket(socket, `[${i + 1}] Join FAILED: ${email} - Join button not found`, 'error');
+                            if (socket) socket.emit('failed-account', accLine);
+                        } else {
                             const clickedJoin = await nativeClick(page, joinSelector, ['Gửi', 'Join', 'Accept', 'Bergabung']);
                             let clicked = clickedJoin;
                             if (!clicked) {
@@ -557,29 +580,31 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                             }
 
                             if (!clicked) {
-                                logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Could not click join button`, 'error');
+                                logToSocket(socket, `[${i + 1}] Join FAILED: ${email} - Could not click join button`, 'error');
                                 if (socket) socket.emit('failed-account', accLine);
-                                return;
+                            } else {
+                                await new Promise(r => setTimeout(r, 1000));
+                                logToSocket(socket, `[${i + 1}] Join Team Success: ${email}`, 'success');
                             }
-
-                            await new Promise(r => setTimeout(r, 1000));
-                            logToSocket(socket, `[${globalIndex + 1}] Join Team Success: ${email}`, 'success');
-
-                        } catch (joinErr) {
-                            logToSocket(socket, `[${globalIndex + 1}] Join Error: ${email} - ${joinErr.message}`, 'error');
-                            if (socket) socket.emit('failed-account', accLine);
-                        } finally {
-                            if (context) await context.close().catch(() => {});
                         }
+
+                    } catch (joinErr) {
+                        logToSocket(socket, `[${i + 1}] Join Error: ${email} - ${joinErr.message}`, 'error');
+                        if (socket) socket.emit('failed-account', accLine);
+                    } finally {
+                        if (context) await context.close().catch(() => {});
                     }
-
-                } catch (error) {
-                    logToSocket(socket, `[${globalIndex + 1}] Error: ${email} - ${error.message}`, 'error');
-                    if (socket) socket.emit('failed-account', accLine);
                 }
-            });
 
-            await Promise.all(promises);
+            } catch (error) {
+                logToSocket(socket, `[${i + 1}] Error: ${email} - ${error.message}`, 'error');
+                if (socket) socket.emit('failed-account', accLine);
+            }
+
+            // Delay between accounts to avoid rate limiting (3 seconds)
+            if (i < accountList.length - 1) {
+                await new Promise(r => setTimeout(r, 3000));
+            }
         }
     } finally {
         if (browser) await browser.close();
