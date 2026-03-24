@@ -1,0 +1,136 @@
+﻿Launching browser...
+Navigating to login...
+--- CAPTURED PASSPORT POST REQUEST ---
+URL: https://login-row.www.capcut.com/passport/web/region/?aid=348188&account_sdk_source=web&sdk_version=2.1.10-tiktok&language=vi-VN&verifyFp=verify_mn3gh0wp_z2hPtKJA_w76V_4HQh_A2Hz_BSJHwJLGCB5g&mix_mode=1
+HEADERS: {
+  appid: '348188',
+  'sec-ch-ua-platform': '"Windows"',
+  referer: 'https://www.capcut.com/',
+  'accept-language': 'vi-VN,vi;q=0.9',
+  'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'x-tt-passport-csrf-token': '',
+  'store-country-code-src': 'cdn',
+  'store-country-code': 'vn',
+  did: '7620503194145179143',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+  accept: 'application/json, text/javascript',
+  'content-type': 'application/x-www-form-urlencoded',
+  cookie: 'ttwid=1|ELS6v-IsR3VNqXsrR6si-dwMkcaOo3i5YLBvVVckCHA|1774286668|65ed101aaebc9832d006690ddcd8a18e472168e830126457649edcbd11d401d8; _gcl_au=1.1.618411125.1774286672; _ga=GA1.1.1535207217.1774286672; _uetsid=280e7da026dd11f1ba2019b8a60e4332; _uetvid=280ea96026dd11f18a059b6d47fbefc9; _clck=1cn1cy7%5E2%5Eg4l%5E1%5E2273; _clsk=15rreqc%5E1774286673191%5E1%5E0%5Ej.clarity.ms%2Fcollect; _ga_F9J0QP63RB=GS2.1.s1774286671$o1$g0$t1774286673$j58$l0$h0',
+  origin: 'https://www.capcut.com'
+}
+POST DATA: type=2&hashed_id=d4976d4bd2df13f4e2234d3a9794095330a79d9d125438bdc614fc11d8270664
+--------------------------------------
+
+--- CAPTURED PASSPORT POST REQUEST ---
+URL: https://login.us.capcut.com/passport/web/region/?aid=348188&account_sdk_source=web&sdk_version=2.1.10-tiktok&language=vi-VN&verifyFp=verify_mn3gh0wp_z2hPtKJA_w76V_4HQh_A2Hz_BSJHwJLGCB5g&mix_mode=1
+HEADERS: {
+  appid: '348188',
+  'sec-ch-ua-platform': '"Windows"',
+  referer: 'https://www.capcut.com/',
+  'accept-language': 'vi-VN,vi;q=0.9',
+  'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'x-tt-passport-csrf-token': '',
+  'store-country-code-src': 'cdn',
+  'store-country-code': 'vn',
+  did: '7620503194145179143',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+  accept: 'application/json, text/javascript',
+  'content-type': 'application/x-www-form-urlencoded',
+  cookie: 'ttwid=1|ELS6v-IsR3VNqXsrR6si-dwMkcaOo3i5YLBvVVckCHA|1774286668|65ed101aaebc9832d006690ddcd8a18e472168e830126457649edcbd11d401d8; _gcl_au=1.1.618411125.1774286672; _ga=GA1.1.1535207217.1774286672; _uetsid=280e7da026dd11f1ba2019b8a60e4332; _uetvid=280ea96026dd11f18a059b6d47fbefc9; _clck=1cn1cy7%5E2%5Eg4l%5E1%5E2273; _clsk=15rreqc%5E1774286673191%5E1%5E0%5Ej.clarity.ms%2Fcollect; _ga_F9J0QP63RB=GS2.1.s1774286671$o1$g0$t1774286673$j58$l0$h0',
+  origin: 'https://www.capcut.com'
+}
+POST DATA: type=2&hashed_id=d4976d4bd2df13f4e2234d3a9794095330a79d9d125438bdc614fc11d8270664
+--------------------------------------
+
+--- CAPTURED PASSPORT POST REQUEST ---
+URL: https://login.us.capcut.com/passport/web/user/check_email_registered?aid=348188&account_sdk_source=web&sdk_version=2.1.10-tiktok&language=vi-VN&verifyFp=verify_mn3gh0wp_z2hPtKJA_w76V_4HQh_A2Hz_BSJHwJLGCB5g
+HEADERS: {
+  appid: '348188',
+  'sec-ch-ua-platform': '"Windows"',
+  referer: 'https://www.capcut.com/',
+  'accept-language': 'vi-VN,vi;q=0.9',
+  'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'x-tt-passport-csrf-token': 'aae00efcb6af72b3e55cd819f05f5014',
+  'store-country-code-src': 'uid',
+  'store-country-code': 'us',
+  did: '7620503194145179143',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+  accept: 'application/json, text/javascript',
+  'content-type': 'application/x-www-form-urlencoded',
+  cookie: 'ttwid=1|ELS6v-IsR3VNqXsrR6si-dwMkcaOo3i5YLBvVVckCHA|1774286668|65ed101aaebc9832d006690ddcd8a18e472168e830126457649edcbd11d401d8; _gcl_au=1.1.618411125.1774286672; _ga=GA1.1.1535207217.1774286672; _uetsid=280e7da026dd11f1ba2019b8a60e4332; _uetvid=280ea96026dd11f18a059b6d47fbefc9; _clck=1cn1cy7%5E2%5Eg4l%5E1%5E2273; _clsk=15rreqc%5E1774286673191%5E1%5E0%5Ej.clarity.ms%2Fcollect; _ga_F9J0QP63RB=GS2.1.s1774286671$o1$g0$t1774286673$j58$l0$h0; passport_csrf_token=aae00efcb6af72b3e55cd819f05f5014; passport_csrf_token_default=aae00efcb6af72b3e55cd819f05f5014; msToken=kFHceQxdU_XrULYvBWBjRKJbKxTOjIFAX5bXX-7IcnME8v3SdgjJWQHJCds1EXDJN7GXifm6hbuyr07rGyycPosfO4fz6GbDT6x0oYXGLOdA',
+  origin: 'https://www.capcut.com'
+}
+POST DATA: mix_mode=1&email=6d7067607745776c76646b6860616c642b6c61&fixed_mix_mode=1
+--------------------------------------
+
+Waiting 5s for requests to form...
+--- CAPTURED PASSPORT POST REQUEST ---
+URL: https://login.us.capcut.com/passport/web/email/login/?aid=348188&account_sdk_source=web&sdk_version=2.1.10-tiktok&language=vi-VN&verifyFp=verify_mn3gh0wp_z2hPtKJA_w76V_4HQh_A2Hz_BSJHwJLGCB5g&msToken=CekLhBBpnT6wg6VRFIME_Q3cBh0Nsyxf2qVEfxJ7ja_6h7g_e36XGaqWOsFlV9efq-jPVy3zCUojjueNRzETZ9OLs7jSMYEhWq-V1cG8XmruRdPalyEZbRLU54eCVx2UZq_xPTdOVw==&X-Bogus=DFSzswfL0DWfFIMECqIr/taF2pnP&X-Gnarly=MKBZ/hOu-Vrz6uQQo4Iq/5vTvpH6a87TD-ohiOX5zYMfdRx-4o7ssfg1PcayfzftkQyty6rAiwKj1FA6s5nCpc9PgvtGjOXFD79Bi5Ebi3kly6PN5nJLg2S89ZLSHSJm1JiUrZSrhOzM16zVDzG4YDiuZd0Gc4duQDoKV4H2glNqIpCA6eT/0kMi4HnwKIWzhLc4dmSDvgGL/VchP3hQ/iy815hoLkAdih9S3LRmXJg3SyaRuT6gzlLHqZqXtPqIpYpxbfKFfQzt
+HEADERS: {
+  appid: '348188',
+  'sec-ch-ua-platform': '"Windows"',
+  referer: 'https://www.capcut.com/',
+  'accept-language': 'vi-VN,vi;q=0.9',
+  'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'x-tt-passport-csrf-token': 'aae00efcb6af72b3e55cd819f05f5014',
+  'store-country-code-src': 'uid',
+  'store-country-code': 'us',
+  did: '7620503194145179143',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+  accept: 'application/json, text/javascript',
+  'content-type': 'application/x-www-form-urlencoded',
+  cookie: 'ttwid=1|ELS6v-IsR3VNqXsrR6si-dwMkcaOo3i5YLBvVVckCHA|1774286668|65ed101aaebc9832d006690ddcd8a18e472168e830126457649edcbd11d401d8; _gcl_au=1.1.618411125.1774286672; _ga=GA1.1.1535207217.1774286672; _uetsid=280e7da026dd11f1ba2019b8a60e4332; _uetvid=280ea96026dd11f18a059b6d47fbefc9; _clck=1cn1cy7%5E2%5Eg4l%5E1%5E2273; _ga_F9J0QP63RB=GS2.1.s1774286671$o1$g0$t1774286673$j58$l0$h0; passport_csrf_token=aae00efcb6af72b3e55cd819f05f5014; passport_csrf_token_default=aae00efcb6af72b3e55cd819f05f5014; msToken=ZrO82WSftg0hJlUKquxYyG88cY7xo_Am6S9CBMsTI1rIlMu-iQvjpZO-j3MQ3XWI3W2ip2ZrvXy2mOaPHztMd8O-7KwGNx848Mt8kKHTli8x; _clsk=15rreqc%5E1774286674976%5E1%5E0%5Ej.clarity.ms%2Fcollect',
+  origin: 'https://www.capcut.com'
+}
+POST DATA: mix_mode=1&email=6d7067607745776c76646b6860616c642b6c61&password=6864776c6b60666475667071&fixed_mix_mode=1
+--------------------------------------
+
+--- CAPTURED PASSPORT POST REQUEST ---
+URL: https://login-row.www.capcut.com/passport/web/auth_broadcast/?aid=348188&account_sdk_source=web&sdk_version=2.1.10-tiktok&language=vi-VN&verifyFp=verify_mn3gh0wp_z2hPtKJA_w76V_4HQh_A2Hz_BSJHwJLGCB5g
+HEADERS: {
+  appid: '348188',
+  'sec-ch-ua-platform': '"Windows"',
+  referer: 'https://www.capcut.com/',
+  'accept-language': 'vi-VN,vi;q=0.9',
+  'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'x-tt-passport-csrf-token': 'aae00efcb6af72b3e55cd819f05f5014',
+  'store-country-code-src': 'uid',
+  'store-country-code': 'us',
+  did: '7620503194145179143',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+  accept: 'application/json, text/javascript',
+  'content-type': 'application/x-www-form-urlencoded',
+  cookie: 'ttwid=1|ELS6v-IsR3VNqXsrR6si-dwMkcaOo3i5YLBvVVckCHA|1774286668|65ed101aaebc9832d006690ddcd8a18e472168e830126457649edcbd11d401d8; _gcl_au=1.1.618411125.1774286672; _ga=GA1.1.1535207217.1774286672; _uetsid=280e7da026dd11f1ba2019b8a60e4332; _uetvid=280ea96026dd11f18a059b6d47fbefc9; _clck=1cn1cy7%5E2%5Eg4l%5E1%5E2273; _ga_F9J0QP63RB=GS2.1.s1774286671$o1$g0$t1774286673$j58$l0$h0; passport_csrf_token=aae00efcb6af72b3e55cd819f05f5014; passport_csrf_token_default=aae00efcb6af72b3e55cd819f05f5014; _clsk=15rreqc%5E1774286674976%5E1%5E0%5Ej.clarity.ms%2Fcollect; sid_guard=fecc2dbd7f5a521aa1904c756315bae9%7C1774286678%7C5184000%7CFri%2C+22-May-2026+17%3A24%3A38+GMT; uid_tt=02f3f3f7b114a5de536c277e97e86f3108d6d89c9768c819ea9f28640b6123f7; uid_tt_ss=02f3f3f7b114a5de536c277e97e86f3108d6d89c9768c819ea9f28640b6123f7; sid_tt=fecc2dbd7f5a521aa1904c756315bae9; sessionid=fecc2dbd7f5a521aa1904c756315bae9; sessionid_ss=fecc2dbd7f5a521aa1904c756315bae9; tt_session_tlb_tag=sttt%7C2%7C_swtvX9aUhqhkEx1YxW66f_________Tb-vm9oJnuz7DF4aOKI0JrUVoGDE39cUaSRPK8coP5uo%3D; sid_ucp_v1=1.0.1-KDgzMGQzOTgzY2NhZmQ1MjI2ZTQ2MDBkM2UyOTI2NzgwMDEyZTA4YmYKGQiNiIjayrrb4GkQ1u6FzgYYnKAVOAFA6wcQBBoHdXNlYXN0NSIgZmVjYzJkYmQ3ZjVhNTIxYWExOTA0Yzc1NjMxNWJhZTkyTgogUSVCiEFtbywGhh0lrvnCrO6QhJPc_8TplYoE9ZQDSWYSIATzik-TDXbNGj48jq5CQfb2R024IENYhm6zpMseo7MrGAEiBnRpa3Rvaw; ssid_ucp_v1=1.0.1-KDgzMGQzOTgzY2NhZmQ1MjI2ZTQ2MDBkM2UyOTI2NzgwMDEyZTA4YmYKGQiNiIjayrrb4GkQ1u6FzgYYnKAVOAFA6wcQBBoHdXNlYXN0NSIgZmVjYzJkYmQ3ZjVhNTIxYWExOTA0Yzc1NjMxNWJhZTkyTgogUSVCiEFtbywGhh0lrvnCrO6QhJPc_8TplYoE9ZQDSWYSIATzik-TDXbNGj48jq5CQfb2R024IENYhm6zpMseo7MrGAEiBnRpa3Rvaw; store-idc=useast5; store-country-sign=MEIEDMZyKtDtr3JQvNE8qQQg3-3yB_QyAWL2eKUJK2xcZZt5tS5RKMdjjIna3FSvuqkEEN3V7Jek_-Kmtq1Qgeb0jaI; store-country-code=us; store-country-code-src=uid; cc-target-idc=useast5; tt-target-idc-sign=WMK2-dW8juYb2DHlVw7AJPTy52VAjedEsOJmDqw1d-YaRuO1Pbe6oY26tWazdCnRVecyAECrSqrk7M2O7omIBImbKFTpwS3Jp78apUeYqASBDbX4z3yI7CAAa2hq4oSQIiKYFLE6jwMQ5MoqORmhShWFN2UeecSt0B8ACR1dXphEjAdnggFugSI1ZVXMmb5EOeUCE69iDgDFbNd5srHsyOLaC65rTnvkdE7sIc0enSX9LIYkIPqgrXxwflJjGikOs9FoFUpgHHGlkVr_Ym6oqlXIwM0ePCTZdn6qkuCo3gY0bFrD8BK2HtuVaOIrgLG4n8IW_jmKFmE5jrFw05BfKgLxY8ATc3IGKB8n2s-wm55FkDhswRyC5dhVQGGL2NhdC9pPBmYVeS7TjIckV32jwurv-NIUb674b3rDroCSL0E-ASibbqERzUO7fwU39Hq7L5Ru_2_jft42EY3PYnliadPuz6FKObHjJwK9UNCQBa6S1Mzu2qKqODUXoddp2p0t; msToken=eltxVa6fs9pXfwlrcFec4rpOuFdbiqKQc8Z0pCtjqM1xALhLA_2UzHrBQcY61AykfZicAZHtyXV6Qb7AbwNLUrdZTmnAxulcrJCZF0hFBUKlKCrRlbad5YnE4tBo3J3hjk1o7pEGDw==',
+  origin: 'https://www.capcut.com'
+}
+POST DATA: hashed_id=d4976d4bd2df13f4e2234d3a9794095330a79d9d125438bdc614fc11d8270664&type=2&sec_uid=MS4wLjABAAAAMwNRPyKhbbi1EK1FvRd-Omrugd4kqpvqb-J9LN_v6zlboNalpS2P2jnRI9jILWSd&screen_name=user1741739400295&pre_path=%2Fpassport%2Fweb%2Femail%2Flogin%2F&final_domain=login.us.capcut.com&is_retry=0
+--------------------------------------
+
+--- CAPTURED PASSPORT POST REQUEST ---
+URL: https://login.us.capcut.com/passport/web/auth_broadcast/?aid=348188&account_sdk_source=web&sdk_version=2.1.10-tiktok&language=vi-VN&verifyFp=verify_mn3gh0wp_z2hPtKJA_w76V_4HQh_A2Hz_BSJHwJLGCB5g
+HEADERS: {
+  appid: '348188',
+  'sec-ch-ua-platform': '"Windows"',
+  referer: 'https://www.capcut.com/',
+  'accept-language': 'vi-VN,vi;q=0.9',
+  'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'x-tt-passport-csrf-token': 'aae00efcb6af72b3e55cd819f05f5014',
+  'store-country-code-src': 'uid',
+  'store-country-code': 'us',
+  did: '7620503194145179143',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+  accept: 'application/json, text/javascript',
+  'content-type': 'application/x-www-form-urlencoded',
+  cookie: 'ttwid=1|ELS6v-IsR3VNqXsrR6si-dwMkcaOo3i5YLBvVVckCHA|1774286668|65ed101aaebc9832d006690ddcd8a18e472168e830126457649edcbd11d401d8; _gcl_au=1.1.618411125.1774286672; _ga=GA1.1.1535207217.1774286672; _uetsid=280e7da026dd11f1ba2019b8a60e4332; _uetvid=280ea96026dd11f18a059b6d47fbefc9; _clck=1cn1cy7%5E2%5Eg4l%5E1%5E2273; _ga_F9J0QP63RB=GS2.1.s1774286671$o1$g0$t1774286673$j58$l0$h0; passport_csrf_token=aae00efcb6af72b3e55cd819f05f5014; passport_csrf_token_default=aae00efcb6af72b3e55cd819f05f5014; _clsk=15rreqc%5E1774286674976%5E1%5E0%5Ej.clarity.ms%2Fcollect; sid_guard=fecc2dbd7f5a521aa1904c756315bae9%7C1774286678%7C5184000%7CFri%2C+22-May-2026+17%3A24%3A38+GMT; uid_tt=02f3f3f7b114a5de536c277e97e86f3108d6d89c9768c819ea9f28640b6123f7; uid_tt_ss=02f3f3f7b114a5de536c277e97e86f3108d6d89c9768c819ea9f28640b6123f7; sid_tt=fecc2dbd7f5a521aa1904c756315bae9; sessionid=fecc2dbd7f5a521aa1904c756315bae9; sessionid_ss=fecc2dbd7f5a521aa1904c756315bae9; tt_session_tlb_tag=sttt%7C2%7C_swtvX9aUhqhkEx1YxW66f_________Tb-vm9oJnuz7DF4aOKI0JrUVoGDE39cUaSRPK8coP5uo%3D; sid_ucp_v1=1.0.1-KDgzMGQzOTgzY2NhZmQ1MjI2ZTQ2MDBkM2UyOTI2NzgwMDEyZTA4YmYKGQiNiIjayrrb4GkQ1u6FzgYYnKAVOAFA6wcQBBoHdXNlYXN0NSIgZmVjYzJkYmQ3ZjVhNTIxYWExOTA0Yzc1NjMxNWJhZTkyTgogUSVCiEFtbywGhh0lrvnCrO6QhJPc_8TplYoE9ZQDSWYSIATzik-TDXbNGj48jq5CQfb2R024IENYhm6zpMseo7MrGAEiBnRpa3Rvaw; ssid_ucp_v1=1.0.1-KDgzMGQzOTgzY2NhZmQ1MjI2ZTQ2MDBkM2UyOTI2NzgwMDEyZTA4YmYKGQiNiIjayrrb4GkQ1u6FzgYYnKAVOAFA6wcQBBoHdXNlYXN0NSIgZmVjYzJkYmQ3ZjVhNTIxYWExOTA0Yzc1NjMxNWJhZTkyTgogUSVCiEFtbywGhh0lrvnCrO6QhJPc_8TplYoE9ZQDSWYSIATzik-TDXbNGj48jq5CQfb2R024IENYhm6zpMseo7MrGAEiBnRpa3Rvaw; store-idc=useast5; store-country-sign=MEIEDMZyKtDtr3JQvNE8qQQg3-3yB_QyAWL2eKUJK2xcZZt5tS5RKMdjjIna3FSvuqkEEN3V7Jek_-Kmtq1Qgeb0jaI; store-country-code=us; store-country-code-src=uid; cc-target-idc=useast5; tt-target-idc-sign=WMK2-dW8juYb2DHlVw7AJPTy52VAjedEsOJmDqw1d-YaRuO1Pbe6oY26tWazdCnRVecyAECrSqrk7M2O7omIBImbKFTpwS3Jp78apUeYqASBDbX4z3yI7CAAa2hq4oSQIiKYFLE6jwMQ5MoqORmhShWFN2UeecSt0B8ACR1dXphEjAdnggFugSI1ZVXMmb5EOeUCE69iDgDFbNd5srHsyOLaC65rTnvkdE7sIc0enSX9LIYkIPqgrXxwflJjGikOs9FoFUpgHHGlkVr_Ym6oqlXIwM0ePCTZdn6qkuCo3gY0bFrD8BK2HtuVaOIrgLG4n8IW_jmKFmE5jrFw05BfKgLxY8ATc3IGKB8n2s-wm55FkDhswRyC5dhVQGGL2NhdC9pPBmYVeS7TjIckV32jwurv-NIUb674b3rDroCSL0E-ASibbqERzUO7fwU39Hq7L5Ru_2_jft42EY3PYnliadPuz6FKObHjJwK9UNCQBa6S1Mzu2qKqODUXoddp2p0t; msToken=EBATpCAsO2dGwQv2dehieDBTw9F1qAZ1K9wiSvoSSc_IQ9Ha0y8PBY2YgzrXcjffFiK1FsgjbPnxbS91LA_6WpCgl6XfawBUy-TryYjrzWNL50vIht34wORT5C-yZjCHjuZiBg4Nzg==',
+  origin: 'https://www.capcut.com'
+}
+POST DATA: hashed_id=d4976d4bd2df13f4e2234d3a9794095330a79d9d125438bdc614fc11d8270664&type=2&sec_uid=MS4wLjABAAAAMwNRPyKhbbi1EK1FvRd-Omrugd4kqpvqb-J9LN_v6zlboNalpS2P2jnRI9jILWSd&screen_name=user1741739400295&pre_path=%2Fpassport%2Fweb%2Femail%2Flogin%2F&final_domain=login.us.capcut.com&is_retry=0
+--------------------------------------
+
+Done

@@ -1,0 +1,58 @@
+[
+  {
+    "label": "enc_noType",
+    "msg": "error",
+    "desc": "Account doesn't exist",
+    "err": 1011,
+    "cookies": 6
+  },
+  {
+    "label": "enc_type8",
+    "msg": "error",
+    "desc": "Account doesn't exist",
+    "err": 1011,
+    "cookies": 6
+  },
+  {
+    "label": "enc_mobileOrEmail",
+    "msg": "error",
+    "desc": "Enter the correct parameter",
+    "err": 3,
+    "cookies": 6
+  },
+  {
+    "label": "enc_noFixedMix",
+    "msg": "error",
+    "desc": "Account doesn't exist",
+    "err": 1011,
+    "cookies": 6
+  },
+  {
+    "label": "plain_mix1",
+    "msg": "error",
+    "desc": "Account doesn't exist",
+    "err": 1011,
+    "cookies": 6
+  },
+  {
+    "label": "enc_xor01",
+    "msg": "error",
+    "desc": "Enter a valid email address",
+    "err": 1031,
+    "cookies": 6
+  },
+  {
+    "label": "enc_xor03",
+    "msg": "error",
+    "desc": "Enter a valid email address",
+    "err": 1031,
+    "cookies": 6
+  },
+  {
+    "label": "regVerify_login",
+    "msg": "error",
+    "desc": "Incorrect parameters",
+    "err": 4,
+    "cookies": 6
+  }
+]

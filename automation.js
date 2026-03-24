@@ -432,155 +432,150 @@ async function nativeClick(page, selector, buttonTextMatches = null) {
     return false;
 }
 
+// --- API-based Login (bypasses client-side email validation) ---
+async function apiLogin(email, password) {
+    const encryptedEmail = encryptToTargetHex(email);
+    const encryptedPassword = encryptToTargetHex(password);
+
+    const url = new URL('https://www.capcut.com/passport/web/email/login/');
+    const queryParams = {
+        aid: '348188',
+        account_sdk_source: 'web',
+        language: 'en',
+        verifyFp: 'verify_m7euzwhw_PNtb4tlY_I0az_4me0_9Hrt_sEBZgW5GGPdn',
+        check_region: '1'
+    };
+    Object.entries(queryParams).forEach(([key, value]) => {
+        url.searchParams.append(key, value);
+    });
+
+    const formData = new URLSearchParams();
+    formData.append('mix_mode', '1');
+    formData.append('email', encryptedEmail);
+    formData.append('password', encryptedPassword);
+    formData.append('fixed_mix_mode', '1');
+
+    const response = await fetchWithTimeout(url.toString(), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Origin': 'https://www.capcut.com',
+            'Referer': 'https://www.capcut.com/login'
+        },
+        body: formData,
+        timeout: 15000
+    });
+
+    const data = await response.json();
+    const cookies = response.headers.raw()['set-cookie'] || [];
+    return { data, cookies };
+}
+
 export async function runLoginFlow(accountList, inviteUrl, socket) {
     const concurrencyLimit = 3;
-    logToSocket(socket, `Starting Turbo Login Loop (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
-    let browser;
-    try {
-        browser = await launchSharedBrowser();
-    } catch (e) { return; }
+    logToSocket(socket, `Starting API Login Flow (${accountList.length} accounts, Concurrent: ${concurrencyLimit})`, 'info');
+
+    // Only launch browser if we need to join a team
+    let browser = null;
+    if (inviteUrl) {
+        try {
+            browser = await launchSharedBrowser();
+        } catch (e) {
+            logToSocket(socket, 'Browser launch failed (needed for join team). Will login only.', 'warn');
+        }
+    }
 
     try {
         for (let i = 0; i < accountList.length; i += concurrencyLimit) {
             const batch = accountList.slice(i, i + concurrencyLimit);
             const promises = batch.map(async (accLine, idx) => {
                 const globalIndex = i + idx;
-                
+
                 accLine = accLine.trim();
                 if (!accLine) return;
 
                 const parts = accLine.split('|');
                 const email = parts[0];
-                const password = parts[1] || APP_PASSWORD; 
+                const password = parts[1] || APP_PASSWORD;
                 if (!email) return;
 
                 logToSocket(socket, `[${globalIndex + 1}/${accountList.length}] Login: ${email}`, 'info');
 
-                let context;
                 try {
-                    context = await browser.createBrowserContext();
-                    const page = await context.newPage();
+                    // --- STEP 1: API LOGIN (no browser needed) ---
+                    const loginResult = await apiLogin(email, password);
 
-                    await page.setViewport({ width: 1366, height: 768 });
-
-                    // --- STEP 1: UI LOGIN IN STEALTH BROWSER ---
-                    try {
-                        await withTimeout(page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }), 32000, 'Goto login');
-                    } catch (e) {
-                        throw new Error("Timeout/Failed to load login page.");
-                    }
-                    
-                    await installPopupDismisser(page);
-
-                    const emailSelector = 'input.lv_sign_in_panel_wide-input, input.lv-input.lv_sign_in_panel_wide-input, input[placeholder*="email" i], input[placeholder*="Nhập email" i]';
-                    try {
-                        await page.waitForSelector(emailSelector, { timeout: 15000 });
-                    } catch (e) {
-                        throw new Error("Timeout/Cannot find email field.");
-                    }
-
-                    await withTimeout(page.click(emailSelector), 10000, 'Click email field');
-                    await page.type(emailSelector, email, { delay: 30 }); // Human-like typing
-
-                    await new Promise(r => setTimeout(r, 600)); // Let React validate email
-
-                    // Use explicit trusted mouse click to continue (CapCut inputs ignore Enter keys)
-                    const continueSelector = 'button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
-                    const clickedContinue = await nativeClick(page, continueSelector, ['Tiếp tục', 'Continue', 'Next', 'Lanjut']);
-                    if (!clickedContinue) await nativeClick(page, continueSelector); // fallback to raw selector click
-
-                    const passSelector = 'input[type="password"]';
-                    try {
-                        await page.waitForSelector(passSelector, { timeout: 15000, visible: true });
-                    } catch (e) {
-                        // Check if an error message appeared instead of the password field
-                        const errorMsg = await page.evaluate(() => {
-                            const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"]');
-                            return errEl ? errEl.innerText : '';
-                        }).catch(() => '');
-                        
-                        const hasCaptcha = await page.evaluate(() => !!document.querySelector('iframe[src*="captcha"], iframe[src*="verify"], iframe[src*="secsdk"]')).catch(() => false);
-                        
-                        if (hasCaptcha) throw new Error("Blocked by Captcha on email step.");
-                        throw new Error(errorMsg ? `Account error: ${errorMsg}` : "Timeout/Cannot find password field.");
-                    }
-
-                    await withTimeout(page.click(passSelector), 10000, 'Click password field');
-                    await page.type(passSelector, password, { delay: 30 }); // Human-like typing
-                    
-                    await new Promise(r => setTimeout(r, 600)); // Let React validate password
-
-                    // Use explicit trusted mouse click to submit login
-                    const loginBtnSelector = 'button.lv_sign_in_panel_wide-sign-in-button, button.lv_sign_in_panel_wide-primary-button, button.lv-btn-primary';
-                    const clickedLogin = await nativeClick(page, loginBtnSelector, ['Đăng nhập', 'Log in', 'Login', 'Sign in', 'Masuk']);
-                    if (!clickedLogin) await nativeClick(page, loginBtnSelector); // fallback
-
-
-                    try {
-                        await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 });
-                    } catch (e) {
-                        // ignore timeout
-                    }
-                    await new Promise(r => setTimeout(r, 2000)); // Buffer for routing
-
-                    // --- VERIFY LOGIN SUCCESS ---
-                    const currentUrl = page.url();
-                    const isStillOnLogin = currentUrl.includes('/login') || currentUrl.includes('/signup');
-                    if (isStillOnLogin) {
-                        const errorMsg = await withTimeout(page.evaluate(() => {
-                            // Broad selector for any error text
-                            const errEl = document.querySelector('.semi-form-field-error-message, .error-message, [class*="error"], .text-red, .login-error');
-                            return errEl ? errEl.innerText : '';
-                        }), 8000, 'Evaluate error message').catch(() => '');
-                        
-                        // Fallback check if it's a captcha iframe
-                        const hasCaptcha = await page.evaluate(() => !!document.querySelector('iframe[src*="captcha"], iframe[src*="verify"], iframe[src*="secsdk"]')).catch(() => false);
-                        
-                        logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errorMsg || (hasCaptcha ? 'Blocked by Captcha' : 'Still on login page')}`, 'error');
+                    if (!loginResult.data || loginResult.data.message !== 'success') {
+                        const errDesc = loginResult.data?.data?.description || loginResult.data?.message || 'Unknown error';
+                        logToSocket(socket, `[${globalIndex + 1}] Login FAILED: ${email} - ${errDesc}`, 'error');
                         if (socket) socket.emit('failed-account', accLine);
-                        return; 
+                        return;
                     }
 
-                    logToSocket(socket, `[${globalIndex + 1}] Login OK: ${email}`, 'info');
+                    logToSocket(socket, `[${globalIndex + 1}] Login OK: ${email}`, 'success');
 
-                    // --- STEP 2: JOIN TEAM VIA BROWSER (if URL provided) ---
-                    if (inviteUrl) {
-                        await withTimeout(page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }), 32000, 'Goto invite');
-                        await installPopupDismisser(page);
+                    // --- STEP 2: JOIN TEAM VIA BROWSER (if URL provided & browser available) ---
+                    if (inviteUrl && browser) {
+                        let context;
+                        try {
+                            context = await browser.createBrowserContext();
+                            const page = await context.newPage();
+                            await page.setViewport({ width: 1366, height: 768 });
 
-                        const joinSelector = "button.lv-btn.lv-btn-primary";
-                        const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 15000 }).catch(() => null);
+                            // Inject cookies from API login response
+                            if (loginResult.cookies && loginResult.cookies.length > 0) {
+                                const cookieObjects = loginResult.cookies.map(c => {
+                                    const [nameValue, ...rest] = c.split(';');
+                                    const [name, ...valueParts] = nameValue.split('=');
+                                    return {
+                                        name: name.trim(),
+                                        value: valueParts.join('=').trim(),
+                                        domain: '.capcut.com',
+                                        path: '/',
+                                    };
+                                });
+                                await page.setCookie(...cookieObjects);
+                            }
 
-                        if (!joinBtnFound) {
-                            logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Join button not found on page`, 'error');
+                            await withTimeout(page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }), 32000, 'Goto invite');
+                            await installPopupDismisser(page);
+
+                            const joinSelector = "button.lv-btn.lv-btn-primary";
+                            const joinBtnFound = await page.waitForSelector(joinSelector, { timeout: 15000 }).catch(() => null);
+
+                            if (!joinBtnFound) {
+                                logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Join button not found`, 'error');
+                                if (socket) socket.emit('failed-account', accLine);
+                                return;
+                            }
+
+                            const clickedJoin = await nativeClick(page, joinSelector, ['Gửi', 'Join', 'Accept', 'Bergabung']);
+                            let clicked = clickedJoin;
+                            if (!clicked) {
+                                clicked = await nativeClick(page, joinSelector);
+                            }
+
+                            if (!clicked) {
+                                logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Could not click join button`, 'error');
+                                if (socket) socket.emit('failed-account', accLine);
+                                return;
+                            }
+
+                            await new Promise(r => setTimeout(r, 1000));
+                            logToSocket(socket, `[${globalIndex + 1}] Join Team Success: ${email}`, 'success');
+
+                        } catch (joinErr) {
+                            logToSocket(socket, `[${globalIndex + 1}] Join Error: ${email} - ${joinErr.message}`, 'error');
                             if (socket) socket.emit('failed-account', accLine);
-                            return;
+                        } finally {
+                            if (context) await context.close().catch(() => {});
                         }
-
-                        // Use Native Puppeteer click for Trusted event
-                        const clickedJoin = await nativeClick(page, joinSelector, ['Gửi', 'Join', 'Accept', 'Bergabung']);
-                        let clicked = clickedJoin;
-                        
-                        // Fallback click on the first valid button if text filter missed
-                        if (!clicked) {
-                            clicked = await nativeClick(page, joinSelector);
-                        }
-
-                        if (!clicked) {
-                            logToSocket(socket, `[${globalIndex + 1}] Join FAILED: ${email} - Could not auto-click join button`, 'error');
-                            if (socket) socket.emit('failed-account', accLine);
-                            return;
-                        }
-
-                        await new Promise(r => setTimeout(r, 1000));
-                        logToSocket(socket, `[${globalIndex + 1}] Join Team Success: ${email}`, 'success');
                     }
 
                 } catch (error) {
-                    logToSocket(socket, `[${globalIndex + 1}] Failed API or Browser: ${error.message}`, 'error');
+                    logToSocket(socket, `[${globalIndex + 1}] Error: ${email} - ${error.message}`, 'error');
                     if (socket) socket.emit('failed-account', accLine);
-                } finally {
-                    if (context) await context.close().catch(() => {});
                 }
             });
 
