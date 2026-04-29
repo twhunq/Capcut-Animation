@@ -40,6 +40,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Pin Puppeteer's Chrome cache inside /app so build-time download is found at runtime
+# (Render runtime HOME differs from build-time HOME, breaking the default cache path)
+ENV PUPPETEER_CACHE_DIR=/app/.puppeteer-cache
+
 COPY package*.json ./
 RUN npm ci
 
