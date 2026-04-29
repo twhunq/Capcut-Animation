@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import open from 'open';
-import { runRegisterFlow, runLoginFlow } from './automation.js';
+import { runRegisterFlow, runLoginFlow, runGrokRegisterFlow } from './automation.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -38,6 +38,13 @@ app.post('/api/start-login', (req, res) => {
     // Run async
     runLoginFlow(accountList, inviteUrl, io);
     res.json({ message: 'Login flow started' });
+});
+
+app.post('/api/start-grok-register', (req, res) => {
+    const { count, password } = req.body;
+    console.log(`Starting Grok Register Flow: ${count} accounts`);
+    runGrokRegisterFlow(count, password, io);
+    res.json({ message: 'Grok register flow started' });
 });
 
 const PORT = process.env.PORT || 3000;

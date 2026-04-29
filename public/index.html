@@ -262,6 +262,43 @@
             box-shadow: 0 2px 12px var(--glow-purple);
         }
 
+        .tab-btn.active-grok {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.05));
+            color: #fbbf24;
+            box-shadow: 0 2px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        .panel-icon.amber {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-amber {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-amber:hover {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            box-shadow: 0 6px 24px rgba(245, 158, 11, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .grok-results .results-title {
+            color: #fbbf24;
+        }
+
+        .grok-results .results-count {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+
+        .grok-results .result-dot {
+            background: #f59e0b;
+        }
+
         .tab-icon {
             width: 18px;
             height: 18px;
@@ -852,6 +889,14 @@
                 </svg>
                 Đăng nhập & Join
             </button>
+            <button onclick="switchTab('grok')" id="tab-grok" class="tab-btn">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 12l2 2 4-4" />
+                </svg>
+                Tạo tài khoản Grok
+            </button>
         </div>
 
         <!-- ===== REGISTER PANEL ===== -->
@@ -1001,6 +1046,85 @@
             </div>
         </div>
 
+        <!-- ===== GROK REGISTER PANEL ===== -->
+        <div id="panel-grok" class="panel">
+            <div class="card">
+                <div class="panel-header">
+                    <div class="panel-icon amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M8 12l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="panel-title">Tạo tài khoản Grok (xAI)</h2>
+                        <p class="panel-desc">Đăng ký hàng loạt tài khoản Grok bằng email tạm từ generator.email</p>
+                    </div>
+                </div>
+
+                <div class="form-row" style="margin-bottom: 12px; gap: 12px; align-items: flex-end;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="grokLoopCount">Số lượng tài khoản</label>
+                        <input type="number" id="grokLoopCount" class="input-field" value="1" min="1"
+                            placeholder="Nhập số lượng...">
+                    </div>
+                    <div class="form-group" style="flex: 2;">
+                        <label for="grokPassword">Mật khẩu</label>
+                        <input type="text" id="grokPassword" class="input-field"
+                            value="Marine12345@" placeholder="Mật khẩu cho tài khoản Grok">
+                    </div>
+                </div>
+                <p class="input-hint" style="margin-bottom: 12px;">⚠️ Cloudflare Turnstile có thể chặn automation. Nếu fail nhiều, thử đổi IP/VPN.</p>
+                <div class="form-row">
+                    <button onclick="startGrokRegister()" class="btn btn-amber" style="width: 100%;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                        Bắt đầu tạo tài khoản Grok
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== GROK RESULTS PANEL ===== -->
+        <div id="grok-results-panel" class="results-panel grok-results">
+            <div class="card">
+                <div class="results-header">
+                    <div class="results-header-left">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
+                        <span class="results-title">Tài khoản Grok đã tạo</span>
+                        <span class="results-count" id="grok-results-count">0</span>
+                    </div>
+                    <div class="results-actions">
+                        <button onclick="copyAllGrokAccounts()" class="btn-ghost" id="grok-btn-copy">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            <span id="grok-copy-text">Copy All</span>
+                        </button>
+                        <button onclick="downloadGrokAccounts()" class="btn-download">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Tải file .txt
+                        </button>
+                    </div>
+                </div>
+                <div class="results-list" id="grok-results-list"></div>
+            </div>
+        </div>
+
         <!-- Console -->
         <div class="console-wrapper">
             <div class="console-header">
@@ -1072,17 +1196,21 @@
             // Reset all tabs
             document.getElementById('tab-register').className = 'tab-btn';
             document.getElementById('tab-login').className = 'tab-btn';
+            document.getElementById('tab-grok').className = 'tab-btn';
 
             // Activate selected
             if (tab === 'register') {
                 document.getElementById('tab-register').classList.add('active-register');
-            } else {
+            } else if (tab === 'login') {
                 document.getElementById('tab-login').classList.add('active-login');
+            } else if (tab === 'grok') {
+                document.getElementById('tab-grok').classList.add('active-grok');
             }
 
             // Toggle panels
             document.getElementById('panel-register').classList.toggle('active', tab === 'register');
             document.getElementById('panel-login').classList.toggle('active', tab === 'login');
+            document.getElementById('panel-grok').classList.toggle('active', tab === 'grok');
         }
 
         // Created accounts tracking
@@ -1183,14 +1311,102 @@
                 return;
             }
 
+            if (!inviteUrl.trim()) {
+                alert('BẮT BUỘC NHẬP INVITE URL: Tính năng login yêu cầu phải có link nhóm để join!');
+                return;
+            }
+
             document.getElementById('failedAccounts').value = '';
-            appendLog('Đang gửi lệnh đăng nhập...', 'warn');
+            appendLog('Đang gửi lệnh đăng nhập và join team...', 'warn');
 
             await fetch('/api/start-login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ accounts, inviteUrl })
             });
+        }
+
+        // ===== GROK REGISTRATION =====
+        let grokCreatedAccounts = [];
+
+        socket.on('grok-account-created', (accountLine) => {
+            grokCreatedAccounts.push(accountLine);
+            const panel = document.getElementById('grok-results-panel');
+            panel.classList.add('visible');
+            document.getElementById('grok-results-count').textContent = grokCreatedAccounts.length;
+
+            const list = document.getElementById('grok-results-list');
+            const item = document.createElement('div');
+            item.className = 'result-item';
+            item.innerHTML = `<span class="result-index">#${grokCreatedAccounts.length}</span><span class="result-dot"></span>${accountLine}`;
+            list.appendChild(item);
+            list.scrollTop = list.scrollHeight;
+        });
+
+        socket.on('grok-register-complete', () => {
+            appendLog('Grok registration flow finished.', 'success');
+        });
+
+        async function startGrokRegister() {
+            const count = document.getElementById('grokLoopCount').value;
+            const password = document.getElementById('grokPassword').value;
+            if (!count || count < 1) { alert('Vui lòng nhập số lượng tài khoản!'); return; }
+            if (!password || password.length < 8) { alert('Mật khẩu phải ít nhất 8 ký tự!'); return; }
+
+            // Reset results
+            grokCreatedAccounts = [];
+            document.getElementById('grok-results-list').innerHTML = '';
+            document.getElementById('grok-results-count').textContent = '0';
+            document.getElementById('grok-results-panel').classList.remove('visible');
+
+            const copyBtn = document.getElementById('grok-btn-copy');
+            copyBtn.classList.remove('copied');
+            document.getElementById('grok-copy-text').textContent = 'Copy All';
+
+            appendLog('Đang gửi lệnh đăng ký Grok (xAI)...', 'warn');
+
+            await fetch('/api/start-grok-register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ count: parseInt(count), password })
+            });
+        }
+
+        async function copyAllGrokAccounts() {
+            if (grokCreatedAccounts.length === 0) return;
+            try {
+                await navigator.clipboard.writeText(grokCreatedAccounts.join('\n'));
+                const copyBtn = document.getElementById('grok-btn-copy');
+                const copyText = document.getElementById('grok-copy-text');
+                copyBtn.classList.add('copied');
+                copyText.textContent = 'Đã copy!';
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyText.textContent = 'Copy All';
+                }, 2000);
+            } catch (e) {
+                alert('Không thể copy. Vui lòng copy thủ công.');
+            }
+        }
+
+        async function downloadGrokAccounts() {
+            if (grokCreatedAccounts.length === 0) return;
+            try {
+                const res = await fetch('/api/download-accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accounts: grokCreatedAccounts })
+                });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'grok_accounts.txt';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Lỗi khi tải file.');
+            }
         }
 
         function clearFailedAccounts() {

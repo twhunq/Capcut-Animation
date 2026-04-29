@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: cc-generator
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CONCURRENCY_LIMIT
+        value: "2"
+      - key: PASSWORD
+        sync: false
