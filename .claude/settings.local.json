@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head -n 1086 automation.js)",
+      "Bash(mv automation.js.tmp automation.js)",
+      "Read(//c/c/Users/trant/OneDrive/Desktop/CC GENERATOR/**)",
+      "Bash(node --check server.js)",
+      "Bash(node --check automation.js)",
+      "Bash(npm install *)",
+      "Bash(node --check db.js)",
+      "Bash(node -e \"import\\('./db.js'\\).then\\(m => console.log\\('db.js imports OK, exports:', Object.keys\\(m\\).join\\(', '\\)\\)\\)\")",
+      "Bash(node -e \"import\\('./db.js'\\).then\\(m => console.log\\('exports:', Object.keys\\(m\\).join\\(', '\\)\\)\\)\")"
+    ]
+  }
+}

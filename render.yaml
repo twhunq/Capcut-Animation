@@ -4,11 +4,15 @@ services:
     runtime: docker
     plan: starter
     autoDeploy: true
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: CONCURRENCY_LIMIT
         value: "2"
       - key: PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
         sync: false

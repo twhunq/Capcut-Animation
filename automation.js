@@ -264,7 +264,7 @@ async function verify_sendRequest(encryptedEmail, encryptedPassword, encryptedCo
         formData.append('password', encryptedPassword);
         formData.append('type', '34');
         formData.append('birthday', formattedDate);
-        formData.append('force_user_region', 'ID');
+        formData.append('force_user_region', 'US');
         formData.append('biz_param', '%7B%7D');
         formData.append('check_region', '1');
         formData.append('fixed_mix_mode', '1');
@@ -727,13 +727,15 @@ async function attemptJoinTeam(page, email, inviteUrl, accountLabel, socket) {
     return { success: true, reason: 'Join command sent (no error detected).' };
 }
 
-export async function runLoginFlow(accountList, inviteUrl, socket) {
+export async function runLoginFlow(accountList, inviteUrl, socket, opts = {}) {
+    const onAccountResult = opts.onAccountResult; // (email, success, reason) => void
     const LOGIN_CONCURRENCY = CONCURRENCY_LIMIT; // 5 luồng song song
     logToSocket(socket, `Starting Parallel Login Flow (${accountList.length} accounts, ${LOGIN_CONCURRENCY} threads, Max ${LOGIN_RETRY_MAX} retries each)`, 'info');
 
     let browser = null;
     let rateLimitHitCount = 0;
     let abortAll = false; // Flag to stop all workers
+    let groupFull = false;
     const MAX_RATE_LIMIT_BEFORE_ABORT = 3;
     
     try {
@@ -756,16 +758,25 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
     let successCount = 0;
     let failCount = 0;
 
-    // Build job queue from account list
+    // Build job queue from account list. Accepts either array of strings ("email|password")
+    // or array of objects ({ id, email, password }). Object form preferred — id used for DB updates.
     const jobQueue = [];
     for (let i = 0; i < accountList.length; i++) {
-        const accLine = accountList[i].trim();
-        if (!accLine) continue;
-        const parts = accLine.split('|');
-        const email = parts[0];
-        const password = parts[1] || APP_PASSWORD;
+        const item = accountList[i];
+        let id = null, email, password;
+        if (typeof item === 'string') {
+            const accLine = item.trim();
+            if (!accLine) continue;
+            const parts = accLine.split('|');
+            email = parts[0];
+            password = parts[1] || APP_PASSWORD;
+        } else if (item && typeof item === 'object') {
+            id = item.id ?? null;
+            email = item.email;
+            password = item.password || APP_PASSWORD;
+        }
         if (!email) continue;
-        jobQueue.push({ index: i, total: accountList.length, email, password, accLine });
+        jobQueue.push({ index: i, total: accountList.length, id, email, password, accLine: `${email}|${password}` });
     }
 
     // Worker function — each worker picks jobs from shared queue
@@ -783,6 +794,7 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
             const accountLabel = `W${workerId}-${job.index + 1}/${job.total}`;
             logToSocket(socket, `[${accountLabel}] Login: ${job.email}`, 'info');
+            if (socket) socket.emit('account-processing', { email: job.email });
 
             let accountSuccess = false;
 
@@ -809,13 +821,22 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     
                     if (inviteUrl) {
                         const joinResult = await attemptJoinTeam(page, job.email, inviteUrl, accountLabel, socket);
-                        
+
                         if (joinResult.success) {
                             logToSocket(socket, `[${accountLabel}] ✓ Join Team Success: ${job.email} — ${joinResult.reason}`, 'success');
                             accountSuccess = true;
                         } else {
                             logToSocket(socket, `[${accountLabel}] ✗ Join FAILED: ${job.email} — ${joinResult.reason}`, 'error');
                             accountSuccess = false;
+                            const r = (joinResult.reason || '').toLowerCase();
+                            if (r.includes('đầy') || r.includes('full') || r.includes('limit')) {
+                                groupFull = true;
+                                abortAll = true;
+                                job.failReason = `[GROUP_FULL] ${joinResult.reason}`;
+                                logToSocket(socket, `⚠️ Nhóm đã đầy — dừng các worker còn lại.`, 'warn');
+                            } else {
+                                job.failReason = `[RETRY] Join failed: ${joinResult.reason}`;
+                            }
                         }
                     } else {
                         accountSuccess = true;
@@ -829,33 +850,38 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
                     if (errMsg.includes('RATE_LIMITED')) {
                         rateLimitHitCount++;
                         logToSocket(socket, `[${accountLabel}] ⚠ RATE LIMIT (${rateLimitHitCount}/${MAX_RATE_LIMIT_BEFORE_ABORT}): ${errMsg}`, 'error');
-                        
+                        job.failReason = '[RETRY] Rate limited';
+
                         if (rateLimitHitCount >= MAX_RATE_LIMIT_BEFORE_ABORT) {
                             logToSocket(socket, `⚠️ ĐÃ BỊ RATE LIMIT ${rateLimitHitCount} LẦN. Dừng tất cả workers!`, 'error');
                             abortAll = true;
                             break;
                         }
-                        
+
                         logToSocket(socket, `[${accountLabel}] ⏳ Chờ 15-25 giây trước khi thử lại...`, 'warn');
                         await humanDelay(15000, 25000);
-                        
+
                     } else if (errMsg.includes('CAPTCHA_DETECTED')) {
                         rateLimitHitCount++;
                         logToSocket(socket, `[${accountLabel}] 🤖 CAPTCHA detected! Cần đổi IP.`, 'error');
+                        job.failReason = '[RETRY] Captcha detected';
                         if (attempt >= LOGIN_RETRY_MAX) break;
                         logToSocket(socket, `[${accountLabel}] ⏳ Chờ 20-30 giây rồi thử lại...`, 'warn');
                         await humanDelay(20000, 30000);
-                        
+
                     } else if (errMsg.includes('ACCOUNT_NOT_EXIST')) {
                         logToSocket(socket, `[${accountLabel}] ✗ Tài khoản không tồn tại: ${job.email} — Bỏ qua.`, 'error');
+                        job.failReason = '[PERMANENT] Tài khoản không tồn tại';
                         break;
-                        
+
                     } else if (errMsg.includes('WRONG_PASSWORD')) {
                         logToSocket(socket, `[${accountLabel}] ✗ Sai mật khẩu: ${job.email} — Bỏ qua.`, 'error');
+                        job.failReason = '[PERMANENT] Sai mật khẩu';
                         break;
-                        
+
                     } else {
                         logToSocket(socket, `[${accountLabel}] Error (attempt ${attempt}/${LOGIN_RETRY_MAX}): ${errMsg}`, 'error');
+                        job.failReason = `[RETRY] ${errMsg.slice(0, 200)}`;
                         if (attempt < LOGIN_RETRY_MAX) {
                             logToSocket(socket, `[${accountLabel}] ⏳ Chờ 5-10 giây trước khi retry...`, 'warn');
                             await humanDelay(5000, 10000);
@@ -870,17 +896,23 @@ export async function runLoginFlow(accountList, inviteUrl, socket) {
 
             if (accountSuccess) {
                 successCount++;
+                if (onAccountResult) await onAccountResult(job.id, job.email, true, null).catch(() => {});
             } else {
                 failCount++;
                 if (socket) socket.emit('failed-account', job.accLine);
+                if (onAccountResult) await onAccountResult(job.id, job.email, false, job.failReason || '[RETRY] login/join error').catch(() => {});
             }
 
             // Nếu bị abort, đánh dấu tất cả job còn lại là failed
             if (abortAll) {
                 while (jobQueue.length > 0) {
                     const remaining = jobQueue.shift();
-                    if (remaining && socket) socket.emit('failed-account', remaining.accLine);
+                    if (!remaining) continue;
+                    if (socket) socket.emit('failed-account', remaining.accLine);
                     failCount++;
+                    if (groupFull && onAccountResult) {
+                        await onAccountResult(remaining.id, remaining.email, false, '[GROUP_FULL] Nhóm đã đầy').catch(() => {});
+                    }
                 }
                 break;
             }
@@ -1084,457 +1116,3 @@ export async function runGptRegisterFlow(count, socket) {
 }
 
 
-// ============================================================
-// =================== GROK REGISTRATION ======================
-// ============================================================
-
-async function functionGetGrokCode(email, domain) {
-    try {
-        const res = await fetchWithTimeout('https://generator.email/', {
-            headers: {
-                'cookie': `_gid=GA1.2.989703044.1735637209; embx=%5B%22xaviermoen51%40dogonoithatlienha.com%22%5D; _ga=GA1.1.1696815852.1733235907; surl=${domain}%2F${email}`,
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            },
-            method: 'GET'
-        });
-
-        const text = await res.text();
-        const $ = cheerio.load(text);
-
-        // Check for xAI / Grok confirmation email
-        const emailContent = $("#email-table").text();
-        if (emailContent.includes('xAI') || emailContent.includes('x.ai') || emailContent.includes('Validate your email') || emailContent.includes('confirmation code')) {
-            // The code format is XXX-XXX (e.g., VM6-QFZ) — 6 alphanumeric chars with dash
-            // Look in the email body for the code pattern
-            const bodyText = $(".e7m.mess_bodiyy").text();
-            
-            // Try to match code format: 3 chars, dash, 3 chars (uppercase alphanumeric)
-            const codeMatch = bodyText.match(/\b([A-Z0-9]{3})-([A-Z0-9]{3})\b/);
-            if (codeMatch) {
-                // Return the full code with dash for display, and raw for input
-                return {
-                    display: `${codeMatch[1]}-${codeMatch[2]}`,
-                    raw: `${codeMatch[1]}${codeMatch[2]}` // 6 chars without dash for OTP input
-                };
-            }
-
-            // Also try from subject line: "3KH-WKI xAI confirmation code"
-            const subjectText = $(".e7m.col-md-12.ma1").text();
-            const subjectMatch = subjectText.match(/([A-Z0-9]{3})-([A-Z0-9]{3})\s*xAI/);
-            if (subjectMatch) {
-                return {
-                    display: `${subjectMatch[1]}-${subjectMatch[2]}`,
-                    raw: `${subjectMatch[1]}${subjectMatch[2]}`
-                };
-            }
-        }
-        return null;
-    } catch (err) {
-        return null;
-    }
-}
-
-async function processSingleGrokAccount(jobId, domainList, browser, customPassword, socket) {
-    let context;
-    try {
-        const domain = domainList[Math.floor(Math.random() * domainList.length)];
-        const name = faker.internet.username().toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 8);
-        const email = `${name}@${domain}`;
-        const password = customPassword || 'Marine12345@';
-        const firstName = faker.person.firstName();
-        const lastName = faker.person.lastName();
-
-        logToSocket(socket, `[${jobId}] Started Grok: ${email}`, 'info');
-
-        context = await browser.createBrowserContext();
-        const page = await context.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-        // ===== STEP 1: Go to sign-up page =====
-        logToSocket(socket, `[${jobId}] Opening Grok Sign-up...`, 'info');
-        await page.goto('https://accounts.x.ai/sign-up', { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await humanDelay(1500, 3000);
-
-        // Click "Đăng ký bằng email" / "Sign up with email"
-        const emailSignupBtnFound = await page.evaluate(() => {
-            const btns = document.querySelectorAll('button');
-            for (const btn of btns) {
-                const text = btn.innerText.toLowerCase();
-                if (text.includes('email') && (text.includes('sign up') || text.includes('đăng ký'))) {
-                    btn.click();
-                    return true;
-                }
-            }
-            return false;
-        });
-
-        if (!emailSignupBtnFound) {
-            // Fallback: try finding by class structure from screenshot
-            await nativeClick(page, 'button.relative.isolate', ['email', 'Email']).catch(() => {});
-        }
-
-        logToSocket(socket, `[${jobId}] Clicked "Sign up with email"`, 'info');
-        await humanDelay(1500, 2500);
-
-        // ===== STEP 2: Enter email =====
-        const emailInputSelector = 'input[name="email"], input[type="email"], input[autocomplete="email"]';
-        const emailInput = await page.waitForSelector(emailInputSelector, { timeout: 15000 });
-        
-        if (!emailInput) {
-            throw new Error('Không tìm thấy ô nhập email trên trang Grok sign-up.');
-        }
-
-        await humanDelay(300, 600);
-        await emailInput.click();
-        await humanDelay(100, 200);
-        await emailInput.type(email, { delay: Math.random() * 15 + 8 });
-        
-        logToSocket(socket, `[${jobId}] Entered email: ${email}`, 'info');
-        await humanDelay(500, 1000);
-
-        // Click "Đăng ký" / "Sign up" submit button
-        const submitClicked = await page.evaluate(() => {
-            const btns = document.querySelectorAll('button[type="submit"], button');
-            for (const btn of btns) {
-                const text = btn.innerText.trim().toLowerCase();
-                if (text === 'đăng ký' || text === 'sign up' || text === 'continue' || text === 'tiếp tục') {
-                    btn.click();
-                    return true;
-                }
-            }
-            // Fallback: click first submit button
-            const submitBtn = document.querySelector('button[type="submit"]');
-            if (submitBtn) { submitBtn.click(); return true; }
-            return false;
-        });
-
-        if (!submitClicked) {
-            throw new Error('Không tìm thấy nút Đăng ký.');
-        }
-
-        logToSocket(socket, `[${jobId}] Submitted email, waiting for verification code...`, 'info');
-        await humanDelay(3000, 5000);
-
-        // Check for errors (email already registered, etc.)
-        const pageTextAfterSubmit = await page.evaluate(() => document.body.innerText).catch(() => '');
-        if (pageTextAfterSubmit.includes('already') || pageTextAfterSubmit.includes('đã được sử dụng') || pageTextAfterSubmit.includes('already registered')) {
-            throw new Error(`Email ${email} đã được đăng ký trước đó.`);
-        }
-
-        // ===== STEP 3: Get verification code from generator.email =====
-        logToSocket(socket, `[${jobId}] Polling generator.email for xAI code...`, 'info');
-        
-        let verificationCode = null;
-        let attempts = 0;
-        const maxAttempts = 30; // 150s max wait
-        
-        do {
-            verificationCode = await functionGetGrokCode(email.split('@')[0], email.split('@')[1]);
-            if (!verificationCode) {
-                await new Promise(resolve => setTimeout(resolve, 5000)); // 5s between polls
-            }
-            attempts++;
-            if (attempts > maxAttempts) break;
-        } while (!verificationCode);
-
-        if (!verificationCode) {
-            throw new Error(`Timeout: Không nhận được mã xác minh sau ${maxAttempts * 5}s.`);
-        }
-
-        logToSocket(socket, `[${jobId}] Got xAI Code: ${verificationCode.display}`, 'success');
-
-        // ===== STEP 4: Enter OTP code =====
-        // The OTP input uses data-input-otp library — single input with maxlength=6
-        const otpInputSelector = 'input[data-input-otp="true"], input[autocomplete="one-time-code"], input[maxlength="6"]';
-        const otpInput = await page.waitForSelector(otpInputSelector, { timeout: 15000 }).catch(() => null);
-        
-        if (otpInput) {
-            await otpInput.click();
-            await humanDelay(200, 400);
-            // Type the 6-char code (without dash)
-            await otpInput.type(verificationCode.raw, { delay: Math.random() * 50 + 30 });
-        } else {
-            // Fallback: try typing into any focused input
-            await page.keyboard.type(verificationCode.raw, { delay: Math.random() * 50 + 30 });
-        }
-
-        logToSocket(socket, `[${jobId}] Entered verification code, waiting...`, 'info');
-        await humanDelay(2000, 3000);
-
-        // Click "Confirmer l'e-mail" / "Confirm email" / "Xác nhận"
-        await page.evaluate(() => {
-            const btns = document.querySelectorAll('button[type="submit"], button');
-            for (const btn of btns) {
-                const text = btn.innerText.trim().toLowerCase();
-                if (text.includes('confirm') || text.includes('xác nhận') || text.includes('verify') || text.includes('xác minh') || text.includes('continue') || text.includes('tiếp tục')) {
-                    btn.click();
-                    return;
-                }
-            }
-            // Fallback
-            document.querySelector('button[type="submit"]')?.click();
-        });
-
-        logToSocket(socket, `[${jobId}] Confirmed code, waiting for profile form...`, 'info');
-        await humanDelay(3000, 5000);
-
-        // ===== STEP 5: Complete registration - Name + Password =====
-        // Wait for the "Hoàn tất đăng ký" page
-        // From screenshot: First name and Last name inputs, then Password
-        
-        // Try to find name inputs
-        const nameInputSelector = 'input[type="text"], input[name*="name" i], input[autocomplete*="name" i]';
-        await page.waitForSelector(nameInputSelector, { timeout: 20000 }).catch(() => null);
-        await humanDelay(500, 1000);
-
-        // Get all text inputs on the page
-        const textInputs = await page.$$(nameInputSelector);
-        
-        if (textInputs.length >= 2) {
-            // First name
-            await textInputs[0].click();
-            await humanDelay(100, 200);
-            await textInputs[0].type(firstName, { delay: Math.random() * 12 + 6 });
-            
-            await humanDelay(300, 600);
-            
-            // Last name
-            await textInputs[1].click();
-            await humanDelay(100, 200);
-            await textInputs[1].type(lastName, { delay: Math.random() * 12 + 6 });
-            
-            logToSocket(socket, `[${jobId}] Entered name: ${firstName} ${lastName}`, 'info');
-        } else if (textInputs.length === 1) {
-            // Single name field
-            await textInputs[0].click();
-            await humanDelay(100, 200);
-            await textInputs[0].type(`${firstName} ${lastName}`, { delay: Math.random() * 12 + 6 });
-        }
-
-        await humanDelay(400, 800);
-
-        // Password input
-        const passwordSelector = 'input[type="password"], input[name="password"], input[autocomplete="new-password"]';
-        const passInput = await page.waitForSelector(passwordSelector, { timeout: 10000 }).catch(() => null);
-        
-        if (passInput) {
-            await passInput.click();
-            await humanDelay(100, 200);
-            await passInput.type(password, { delay: Math.random() * 12 + 6 });
-            logToSocket(socket, `[${jobId}] Entered password`, 'info');
-        }
-
-        await humanDelay(1000, 2000);
-
-        // ===== STEP 6: Wait for and click Cloudflare Turnstile =====
-        logToSocket(socket, `[${jobId}] Waiting for Cloudflare Turnstile...`, 'warn');
-        
-        try {
-            await humanDelay(2000, 3000); // Wait for the turnstile to fully render
-            
-            // Ensure we target a VISIBLE Turnstile iframe
-            const iframeSelector = 'iframe[src*="challenge-platform"], iframe[title*="Widget"], iframe[src*="turnstile"]';
-            const iframeHandle = await page.waitForSelector(iframeSelector, { visible: true, timeout: 15000 });
-            
-            if (iframeHandle) {
-                logToSocket(socket, `[${jobId}] Chuyển focus vào màn hình Turnstile...`, 'info');
-                
-                await page.evaluate((el) => { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, iframeHandle);
-                await humanDelay(1500, 2000);
-
-                let isClicked = false;
-
-                // Method 1: Inject click into the iframe context directly
-                const frame = await iframeHandle.contentFrame();
-                if (frame) {
-                    try {
-                        const cb = await frame.$('input[type="checkbox"], body');
-                        if (cb) {
-                            await cb.click({ delay: Math.random() * 50 + 40 });
-                            logToSocket(socket, `[${jobId}] Đã click thông qua Iframe Context gốc.`, 'info');
-                            isClicked = true;
-                        }
-                    } catch(err) {
-                        // Ignore inner click error
-                    }
-                }
-
-                // Method 2: Natural Mouse Emulation fallback
-                if (!isClicked) {
-                    logToSocket(socket, `[${jobId}] Dùng chuột ảo di chuyển tới Checkbox...`, 'info');
-                    const box = await iframeHandle.boundingBox();
-                    if (box && box.width > 0) {
-                        // Turnstile checkbox is on the left, add slight random float mapping
-                        const targetX = box.x + 25 + (Math.random() * 10); 
-                        const targetY = box.y + (box.height / 2) + (Math.random() * 6 - 3);
-
-                        // Move roughly to the center of iframe first
-                        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 15 });
-                        await humanDelay(100, 250);
-                        // Slide to the checkbox
-                        await page.mouse.move(targetX, targetY, { steps: 10 });
-                        await humanDelay(100, 200);
-
-                        await page.mouse.down();
-                        await humanDelay(Math.random() * 60 + 30);
-                        await page.mouse.up();
-                        logToSocket(socket, `[${jobId}] Đã mô phỏng click vật lý vào tọa độ (${targetX.toFixed(0)}, ${targetY.toFixed(0)}).`, 'info');
-                    }
-                }
-                
-                await humanDelay(3000, 5000); // Wait for verification to complete
-            }
-        } catch (e) {
-            logToSocket(socket, `[${jobId}] Error trying to click Turnstile: ${e.message}`, 'warn');
-        }
-
-        logToSocket(socket, `[${jobId}] Waiting for Turnstile to pass (up to 30s)...`, 'warn');
-        
-        let turnstilePassed = false;
-        for (let t = 0; t < 30; t++) {
-            const cfStatus = await page.evaluate(() => {
-                // Cloudflare injects this hidden field. If it has a value, user is verified.
-                const responseInput = document.querySelector('[name="cf-turnstile-response"]');
-                if (responseInput && responseInput.value) return 'passed';
-                
-                const text = document.body.innerText.toLowerCase();
-                // "success" text is sometimes shown in the iframe but we can't always read it cross-origin
-                if (text.includes('thành công') || text.includes('success')) return 'passed';
-                
-                return 'waiting';
-            });
-            
-            if (cfStatus === 'passed') {
-                turnstilePassed = true;
-                logToSocket(socket, `[${jobId}] ✓ Cloudflare Turnstile passed!`, 'success');
-                break;
-            }
-            await new Promise(r => setTimeout(r, 1000));
-        }
-
-        if (!turnstilePassed) {
-            logToSocket(socket, `[${jobId}] ⚠ Cloudflare chưa pass, thử submit anyway...`, 'warn');
-        }
-
-        await humanDelay(500, 1000);
-
-        // ===== STEP 7: Click "Hoàn tất đăng ký" / "Complete registration" =====
-        const finalSubmit = await page.evaluate(() => {
-            const btns = document.querySelectorAll('button[type="submit"], button');
-            for (const btn of btns) {
-                const text = btn.innerText.trim().toLowerCase();
-                if (text.includes('hoàn tất') || text.includes('complete') || text.includes('finish') || text.includes('create') || text.includes('tạo') || text.includes('đăng ký')) {
-                    btn.click();
-                    return true;
-                }
-            }
-            const submitBtn = document.querySelector('button[type="submit"]');
-            if (submitBtn) { submitBtn.click(); return true; }
-            return false;
-        });
-
-        if (finalSubmit) {
-            logToSocket(socket, `[${jobId}] Clicked "Hoàn tất đăng ký"...`, 'info');
-        }
-
-        // Wait for completion
-        await humanDelay(3000, 5000);
-
-        // Check if registration succeeded
-        const finalUrl = page.url();
-        const finalPageText = await page.evaluate(() => document.body.innerText).catch(() => '');
-        
-        const hasError = finalPageText.toLowerCase().includes('error') || 
-                         finalPageText.toLowerCase().includes('lỗi') ||
-                         finalPageText.toLowerCase().includes('failed');
-        const stillOnSignup = finalUrl.includes('/sign-up');
-
-        if (hasError && stillOnSignup) {
-            throw new Error(`Đăng ký không thành công. URL: ${finalUrl}`);
-        }
-
-        // SAVE ACCOUNT
-        const accountLine = `${email}|${password}`;
-        await saveToFile('grok_accounts.txt', `${accountLine}\n`);
-        logToSocket(socket, `[${jobId}] ✅ GROK SAVED: ${email} | ${firstName} ${lastName}`, 'success');
-        if (socket) socket.emit('grok-account-created', accountLine);
-        return true;
-
-    } catch (error) {
-        logToSocket(socket, `[${jobId}] ✗ Grok Error: ${error.message}`, 'error');
-        return false;
-    } finally {
-        if (context) await context.close().catch(() => {});
-    }
-}
-
-export async function runGrokRegisterFlow(count, customPassword, socket) {
-    logToSocket(socket, `Starting Grok Registration (Target: ${count} accounts)`, 'info');
-
-    const domainList = await getEmailRandom(socket);
-    if (!domainList || domainList.length === 0) {
-        logToSocket(socket, 'Network Error: Cannot fetch email domains.', 'error');
-        if (socket) socket.emit('grok-register-complete');
-        return;
-    }
-    logToSocket(socket, `Fetched ${domainList.length} email domains`, 'info');
-
-    logToSocket(socket, 'Launching stealth browser for Grok...', 'info');
-    let browser;
-    try {
-        browser = await puppeteer.launch({
-            headless: process.env.NODE_ENV === 'production' ? 'new' : false,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--window-size=1280,720',
-                '--disable-blink-features=AutomationControlled',
-                '--disable-site-isolation-trials',
-                '--disable-features=IsolateOrigins,site-per-process'
-            ],
-            defaultViewport: null
-        });
-    } catch (e) {
-        logToSocket(socket, 'Browser launch failed: ' + e.message, 'error');
-        if (socket) socket.emit('grok-register-complete');
-        return;
-    }
-
-    let successCount = 0;
-    let failCount = 0;
-    // Run sequentially for stability (xAI is strict with rate limiting)
-    const GROK_CONCURRENCY = 1;
-
-    const jobs = Array.from({ length: count }, (_, i) => i + 1);
-
-    async function worker() {
-        while (jobs.length > 0) {
-            const currentJob = jobs.shift();
-            const success = await processSingleGrokAccount(currentJob, domainList, browser, customPassword, socket);
-            if (success) {
-                successCount++;
-            } else {
-                failCount++;
-            }
-            // Cooldown between accounts
-            if (jobs.length > 0) {
-                const cooldown = Math.floor(Math.random() * 3000) + 3000; // 3-6s
-                logToSocket(socket, `[${currentJob}] ⏳ Cooldown ${(cooldown/1000).toFixed(1)}s before next...`, 'info');
-                await new Promise(r => setTimeout(r, cooldown));
-            }
-        }
-    }
-
-    const workers = [];
-    for (let i = 0; i < GROK_CONCURRENCY; i++) {
-        workers.push(worker());
-    }
-
-    await Promise.all(workers);
-
-    logToSocket(socket, 'Closing browser (Grok)...', 'info');
-    await browser.close().catch(() => {});
-    logToSocket(socket, `✅ Grok Registration Complete — Thành công: ${successCount}, Thất bại: ${failCount}`, 'success');
-    if (socket) socket.emit('grok-register-complete');
-}
