@@ -45,6 +45,7 @@ async function migrateExpired() {
             password: r.password,
             added_at: r.added_at,
             ttl_days: r.ttl_days,
+            one_time: !!r.one_time,
             last_joined_at: r.last_joined_at,
             last_failed_at: r.last_failed_at,
             fail_reason: r.fail_reason,
@@ -99,6 +100,7 @@ export async function listAccounts() {
             password: row.password,
             addedAt: row.added_at,
             ttlDays: row.ttl_days,
+            oneTime: !!row.one_time,
             expiresAt: new Date(new Date(row.added_at).getTime() + row.ttl_days * 86400_000).toISOString(),
             lastJoinedAt: row.last_joined_at,
             lastFailedAt: row.last_failed_at,
@@ -113,6 +115,7 @@ export async function listAccounts() {
             password: row.password,
             addedAt: row.added_at,
             ttlDays: row.ttl_days,
+            oneTime: !!row.one_time,
             expiresAt: row.expired_at,
             lastJoinedAt: row.last_joined_at,
             lastFailedAt: row.last_failed_at,
@@ -123,9 +126,18 @@ export async function listAccounts() {
     return out;
 }
 
-export async function addAccounts(rawText, ttlDays) {
+export async function addAccounts(rawText, ttlInput) {
     if (!supabase) throw new Error('Supabase chưa cấu hình.');
-    if (![35, 90, 180].includes(ttlDays)) throw new Error('ttlDays phải là 35, 90 hoặc 180.');
+
+    let ttlDays, oneTime;
+    if (ttlInput === 'once' || ttlInput === '0' || ttlInput === 0) {
+        ttlDays = 35; // Fallback TTL nếu acc không bao giờ được dùng
+        oneTime = true;
+    } else {
+        ttlDays = typeof ttlInput === 'string' ? parseInt(ttlInput, 10) : ttlInput;
+        oneTime = false;
+        if (![14, 35, 90, 180].includes(ttlDays)) throw new Error('ttlDays phải là 14, 35, 90, 180 hoặc once.');
+    }
 
     const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
     const rows = [];
@@ -136,7 +148,7 @@ export async function addAccounts(rawText, ttlDays) {
             errors.push(line);
             continue;
         }
-        rows.push({ email: parts[0].trim(), password: parts[1].trim(), ttl_days: ttlDays });
+        rows.push({ email: parts[0].trim(), password: parts[1].trim(), ttl_days: ttlDays, one_time: oneTime });
     }
     if (rows.length === 0) return { inserted: 0, skipped: lines.length, errors };
 
@@ -179,6 +191,32 @@ export async function restoreAccount(id) {
 
 export async function markJoinedById(id) {
     if (!supabase) return;
+
+    // Fetch acc để biết có phải one_time không
+    const { data: acc, error: e0 } = await supabase.from('accounts').select('*').eq('id', id).single();
+    if (e0 || !acc) {
+        if (e0) console.error(`markJoinedById fetch: ${e0.message}`);
+        return;
+    }
+
+    if (acc.one_time) {
+        // Move ngay sang expired_accounts thay vì set cooldown
+        const { error: e1 } = await supabase.from('expired_accounts').upsert({
+            email: acc.email,
+            password: acc.password,
+            added_at: acc.added_at,
+            ttl_days: acc.ttl_days,
+            one_time: true,
+            last_joined_at: new Date().toISOString(),
+            last_failed_at: null,
+            fail_reason: '[ONE_TIME] Đã dùng 1 lần — auto expired',
+        }, { onConflict: 'email,added_at', ignoreDuplicates: true });
+        if (e1) { console.error(`markJoinedById one_time insert: ${e1.message}`); return; }
+        const { error: e2 } = await supabase.from('accounts').delete().eq('id', id);
+        if (e2) console.error(`markJoinedById one_time delete: ${e2.message}`);
+        return;
+    }
+
     const { error } = await supabase
         .from('accounts')
         .update({ last_joined_at: new Date().toISOString(), last_failed_at: null, fail_reason: null })

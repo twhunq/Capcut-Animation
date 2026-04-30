@@ -291,8 +291,9 @@ async function saveToFile(filename, data) {
 }
 
 async function launchSharedBrowser() {
+    const showBrowser = process.env.SHOW_BROWSER === '1';
     return await puppeteer.launch({
-        headless: process.env.NODE_ENV === 'production' ? 'new' : false,
+        headless: showBrowser ? false : 'new',
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
         defaultViewport: null
     });
@@ -477,7 +478,7 @@ async function attemptLogin(page, email, password, accountLabel, socket) {
     logToSocket(socket, `[${accountLabel}] Opening CapCut Login Page...`, 'info');
     await withTimeout(page.goto('https://www.capcut.com/login', { waitUntil: 'domcontentloaded', timeout: 45000 }), 50000, 'Goto login');
     await installPopupDismisser(page);
-    await humanDelay(800, 1500); // Chờ trang render xong hoàn toàn
+    await humanDelay(500, 900); // Chờ trang render xong hoàn toàn
 
     // Kiểm tra CAPTCHA ngay từ đầu
     const captchaCheck = await detectCaptchaOrChallenge(page);
@@ -654,7 +655,7 @@ async function attemptJoinTeam(page, email, inviteUrl, accountLabel, socket) {
     logToSocket(socket, `[${accountLabel}] Navigating to Space Invite...`, 'info');
     await withTimeout(page.goto(inviteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }), 35000, 'Goto invite');
     await installPopupDismisser(page);
-    await humanDelay(2000, 3500); // Đợi trang invite load xong
+    await humanDelay(1200, 2200); // Đợi trang invite load xong
 
     // Kiểm tra link hết hạn
     const preText = await page.evaluate(() => document.body.innerText).catch(() => '');
@@ -708,22 +709,50 @@ async function attemptJoinTeam(page, email, inviteUrl, accountLabel, socket) {
         return { success: false, reason: 'Không thể click nút Join.' };
     }
 
-    await humanDelay(2500, 4000); // Chờ response từ server
+    await humanDelay(1500, 2500); // Chờ response từ server
 
     // Kiểm tra kết quả
     const pageText = await page.evaluate(() => document.body.innerText).catch(() => '');
     const ptLower = pageText.toLowerCase();
-    
-    if (ptLower.includes('full') || ptLower.includes('giới hạn') || ptLower.includes('limit') || ptLower.includes('không thể tham gia') || ptLower.includes('cannot join')) {
+
+    // Detect navigation failure (back to CapCut homepage)
+    if (ptLower.includes('create stunning videos') || ptLower.includes('craft masterpieces')) {
+        logToSocket(socket, `[${accountLabel}] DEBUG: page redirected to homepage (auth/region issue?)`, 'warn');
+        return { success: false, reason: '[RETRY] Trang invite redirect về homepage' };
+    }
+
+    // Match phrase cụ thể cho "nhóm đầy" — tránh false positive với "unlimited", "full" trong marketing copy
+    const fullPhrases = [
+        'team is full',
+        'group is full',
+        'space is full',
+        'team has reached',
+        'group has reached',
+        'maximum members',
+        'member limit',
+        'membership limit',
+        'reached the limit',
+        'nhóm đã đầy',
+        'đã đầy',
+        'đã đạt giới hạn',
+        'không thể tham gia',
+        'cannot join this',
+        'unable to join',
+    ];
+    const matchedFull = fullPhrases.find(p => ptLower.includes(p));
+    if (matchedFull) {
+        logToSocket(socket, `[${accountLabel}] Phát hiện "đầy" qua phrase: "${matchedFull}"`, 'warn');
         return { success: false, reason: 'Nhóm ĐÃ ĐẦY hoặc không thể join.' };
     }
-    
+
     // Kiểm tra "Pending" / "Submitted" / "Success"
-    if (ptLower.includes('pending') || ptLower.includes('submitted') || ptLower.includes('success') || ptLower.includes('đã gửi') || ptLower.includes('thành công')) {
+    if (ptLower.includes('pending') || ptLower.includes('submitted') || ptLower.includes('request sent') || ptLower.includes('đã gửi') || ptLower.includes('yêu cầu đã được gửi') || ptLower.includes('thành công')) {
         return { success: true, reason: 'Join request submitted!' };
     }
-    
-    // Nếu không có lỗi rõ ràng, coi như thành công
+
+    // Nếu không có lỗi rõ ràng, log đoạn text đầu để debug rồi coi như thành công
+    const snippet = pageText.replace(/\s+/g, ' ').trim().slice(0, 150);
+    logToSocket(socket, `[${accountLabel}] DEBUG page text: "${snippet}"`, 'info');
     return { success: true, reason: 'Join command sent (no error detected).' };
 }
 
@@ -739,9 +768,11 @@ export async function runLoginFlow(accountList, inviteUrl, socket, opts = {}) {
     const MAX_RATE_LIMIT_BEFORE_ABORT = 3;
     
     try {
-        logToSocket(socket, 'Launching stealth browser (headless)...', 'info');
+        // SHOW_BROWSER=1 để debug (local), mặc định luôn headless cho mượt
+        const showBrowser = process.env.SHOW_BROWSER === '1';
+        logToSocket(socket, `Launching stealth browser (${showBrowser ? 'VISIBLE' : 'headless'})...`, 'info');
         browser = await puppeteer.launch({
-            headless: 'new', // Ẩn tab như reg tài khoản
+            headless: showBrowser ? false : 'new',
             args: [
                 '--no-sandbox', '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage', '--disable-gpu',
@@ -917,9 +948,9 @@ export async function runLoginFlow(accountList, inviteUrl, socket, opts = {}) {
                 break;
             }
 
-            // Cooldown ngắn giữa các account (1-3s thay vì 2-5s vì đã chia nhỏ ra 5 workers)
+            // Cooldown ngắn giữa các account (500-1500ms — đủ random để tránh pattern detect)
             if (jobQueue.length > 0) {
-                const delayMs = Math.floor(Math.random() * 2000) + 1000;
+                const delayMs = Math.floor(Math.random() * 1000) + 500;
                 await new Promise(r => setTimeout(r, delayMs));
             }
         }

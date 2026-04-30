@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -51,7 +52,7 @@ app.post('/api/accounts', async (req, res) => {
     try {
         const { rawText, ttlDays } = req.body;
         if (!rawText) return res.status(400).json({ message: 'Thiếu nội dung tài khoản.' });
-        const result = await db.addAccounts(rawText, parseInt(ttlDays, 10));
+        const result = await db.addAccounts(rawText, ttlDays === 'once' ? 'once' : parseInt(ttlDays, 10));
         res.json(result);
     } catch (e) {
         res.status(500).json({ message: e.message });

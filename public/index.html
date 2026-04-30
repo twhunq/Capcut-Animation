@@ -560,6 +560,20 @@
         }
         .acc-row:hover { background: rgba(255,255,255,0.05); }
         .acc-row-meta { font-size: 10px; color: var(--text-muted); margin-left: 8px; }
+        .acc-row-pwd-sep { color: var(--text-muted); margin: 0 4px; opacity: 0.5; }
+        .acc-row-pwd { color: var(--text-secondary); opacity: 0.7; }
+        .acc-once-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.1));
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #fbbf24;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
         .acc-row-actions { display: flex; gap: 4px; }
         .acc-row-actions button {
             background: transparent;
@@ -1348,7 +1362,9 @@
                     <div class="form-group" style="width: 160px;">
                         <label for="newAccountsTtl">Thời hạn lưu</label>
                         <select id="newAccountsTtl" class="input-field">
-                            <option value="35">35 ngày</option>
+                            <option value="once">Dùng 1 lần (auto expire)</option>
+                            <option value="14">14 ngày</option>
+                            <option value="35" selected>35 ngày</option>
                             <option value="90">3 tháng (90 ngày)</option>
                             <option value="180">6 tháng (180 ngày)</option>
                         </select>
@@ -1666,9 +1682,26 @@
             row.className = 'acc-row';
 
             const left = document.createElement('span');
+            if (acc.oneTime) {
+                const onceBadge = document.createElement('span');
+                onceBadge.className = 'acc-once-badge';
+                onceBadge.textContent = '1×';
+                onceBadge.title = 'Dùng 1 lần — sau khi join sẽ tự move sang Hết hạn';
+                left.appendChild(onceBadge);
+            }
             const emailSpan = document.createElement('span');
             emailSpan.textContent = acc.email;
             left.appendChild(emailSpan);
+            if (acc.password) {
+                const sep = document.createElement('span');
+                sep.className = 'acc-row-pwd-sep';
+                sep.textContent = '|';
+                const pwdSpan = document.createElement('span');
+                pwdSpan.className = 'acc-row-pwd';
+                pwdSpan.textContent = acc.password;
+                left.appendChild(sep);
+                left.appendChild(pwdSpan);
+            }
 
             const metaSpan = document.createElement('span');
             metaSpan.className = 'acc-row-meta';
@@ -1813,7 +1846,8 @@
         async function addAccounts() {
             const btn = event && event.currentTarget;
             const rawText = document.getElementById('newAccountsList').value;
-            const ttlDays = parseInt(document.getElementById('newAccountsTtl').value, 10);
+            const ttlRaw = document.getElementById('newAccountsTtl').value;
+            const ttlDays = ttlRaw === 'once' ? 'once' : parseInt(ttlRaw, 10);
             if (!rawText.trim()) { toast('Hãy paste tài khoản!', 'warn'); return; }
 
             const run = withButtonLoading(btn, async () => {

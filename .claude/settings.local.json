@@ -9,7 +9,10 @@
       "Bash(npm install *)",
       "Bash(node --check db.js)",
       "Bash(node -e \"import\\('./db.js'\\).then\\(m => console.log\\('db.js imports OK, exports:', Object.keys\\(m\\).join\\(', '\\)\\)\\)\")",
-      "Bash(node -e \"import\\('./db.js'\\).then\\(m => console.log\\('exports:', Object.keys\\(m\\).join\\(', '\\)\\)\\)\")"
+      "Bash(node -e \"import\\('./db.js'\\).then\\(m => console.log\\('exports:', Object.keys\\(m\\).join\\(', '\\)\\)\\)\")",
+      "Bash(node -e \"import\\('dotenv/config'\\).then\\(\\(\\)=>{console.log\\('SUPABASE_URL:', process.env.SUPABASE_URL ? 'OK \\('+process.env.SUPABASE_URL.slice\\(0,40\\)+'...\\)' : 'MISSING'\\); console.log\\('SUPABASE_KEY:', process.env.SUPABASE_KEY ? 'OK \\('+process.env.SUPABASE_KEY.slice\\(0,30\\)+'...\\)' : 'MISSING'\\);}\\)\")",
+      "Bash(timeout 8 node server.js)",
+      "Bash(netstat -ano)"
     ]
   }
 }
